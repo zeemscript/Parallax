@@ -39,12 +39,12 @@
     "@fontsource/ibm-plex-mono": "^5.3.0",
     "lucide-react": "^1.41.0",
     "motion": "^13.2.0",
-    "react": "^19.1.1",
+    "react": "^19.3.0",
     "react-dom": "^19.1.1",
     "react-router-dom": "^7.8.2"
   },
   "devDependencies": {
-    "@types/react": "^19.1.12",
+    "@types/react": "^19.3.0",
     "@types/react-dom": "^19.1.9",
     "@vitejs/plugin-react": "^5.0.2",
     "playwright-core": "^1.55.0",
