@@ -12,6 +12,7 @@ import { canOpenRepoDashboard, escrowedTotal, formatMoney, repoName, reposOwnedB
 import { PLATFORM } from './lib/platform';
 import { Avatar, Brand, EASE } from './components/ui';
 import { GooeyNav } from './components/bits';
+import { NotFound } from './components/NotFound';
 import { Landing } from './pages/landing';
 import { Explore } from './pages/explore';
 import { IssuePage } from './pages/issue';
@@ -381,7 +382,7 @@ function Routed() {
       <Route path="/maintainer/repo/:repoId/issues" element={<RepoShell><RepoIssues /></RepoShell>} />
       <Route path="/maintainer/repo/:repoId/settings" element={<RepoShell><RepoSettings /></RepoShell>} />
 
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<PublicShell><NotFound /></PublicShell>} />
     </Routes>
   );
 }
