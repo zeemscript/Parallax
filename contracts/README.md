@@ -71,6 +71,6 @@ Double-check the USDC issuer against Circle's published testnet address before d
 
 ## Status
 
-The contract is tested but not yet deployed, and the web app does not call it yet. Wiring the app
+The contract is deployed to Stellar testnet. The web app does not call it yet. Wiring the app
 to it — Freighter for maintainers, then reading `receipt` events for the receipts page — is
 tracked in the repository's issues.
