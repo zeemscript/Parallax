@@ -41,6 +41,7 @@ portable history of paid work.
 | 3 | `NotOpen` | the bounty is already paid or refunded |
 | 4 | `NotAssigned` | `release` called before `assign` |
 | 5 | `AlreadyFunded` | the issue already has an open bounty |
+| 6 | `SelfAssign` | `assign` targets the funding maintainer |
 
 ## Build and test
 
