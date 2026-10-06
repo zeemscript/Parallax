@@ -31,9 +31,9 @@ Two views of the same work: maintainers see a backlog that gets done; contributo
 is already there.
 
 > [!NOTE]
-> **Status: preview.** The full product flow runs in the browser on local data, and the escrow
-> contract is written and tested. The contract is not yet deployed, and the app does not call it
-> yet. No real funds move. See the [roadmap](#roadmap).
+> **Status: testnet preview.** The escrow contract is deployed to Stellar testnet. The web app
+> still runs the full product flow on local browser data and does not call the contract yet, so no
+> real funds move. See the [roadmap](#roadmap).
 
 ## Why per-issue escrow
 
@@ -173,7 +173,7 @@ CI runs all of these, plus the wasm build, on every pull request.
 
 - [x] Product flow in the browser: connect, fund, apply, assign, merge and release, receipts
 - [x] Soroban escrow contract with tests
-- [ ] Deploy the contract to testnet — [#3](https://github.com/zeemscript/parallax/issues/3)
+- [x] Deploy the contract to testnet — [#3](https://github.com/zeemscript/parallax/issues/3)
 - [ ] Connect Freighter for maintainers — [#2](https://github.com/zeemscript/parallax/issues/2)
 - [ ] Fund bounties on-chain from the dashboard — [#4](https://github.com/zeemscript/parallax/issues/4)
 - [ ] Read receipts from contract events — [#5](https://github.com/zeemscript/parallax/issues/5)
