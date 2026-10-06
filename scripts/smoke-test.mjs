@@ -57,6 +57,33 @@ try {
   assert.equal(await page.locator('.rail').count(), 0, 'explore is not a dashboard');
   assert.equal(await page.locator('.list-row').count(), 7);
 
+  const issueTab = page.getByRole('tab', { name: 'Issues' });
+  assert.equal(await issueTab.getAttribute('tabindex'), '0');
+  assert.equal(await page.getByRole('tab', { name: 'Repositories' }).getAttribute('tabindex'), '-1');
+  await issueTab.focus();
+  await issueTab.press('ArrowRight');
+  await page.waitForURL('**/explore/repos');
+  await page.waitForFunction(() =>
+    document.activeElement?.getAttribute('role') === 'tab'
+    && document.activeElement.textContent.trim() === 'Repositories'
+    && document.activeElement.getAttribute('aria-selected') === 'true',
+  );
+  await page.getByRole('tab', { name: 'Repositories' }).press('End');
+  await page.waitForURL('**/explore/orgs');
+  await page.waitForFunction(() =>
+    document.activeElement?.getAttribute('role') === 'tab'
+    && document.activeElement.textContent.trim() === 'Organizations'
+    && document.activeElement.getAttribute('aria-selected') === 'true',
+  );
+  await page.getByRole('tab', { name: 'Organizations' }).press('Home');
+  await page.waitForURL('**/explore');
+  await page.waitForFunction(() =>
+    document.activeElement?.getAttribute('role') === 'tab'
+    && document.activeElement.textContent.trim() === 'Issues'
+    && document.activeElement.getAttribute('aria-selected') === 'true',
+  );
+  await settle();
+
   // search + tabs
   await page.getByLabel('Search', { exact: true }).fill('quickstart');
   await settle();
