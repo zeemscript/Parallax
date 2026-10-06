@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
-import { ArrowUpRight, Check, GitPullRequest, Lock } from 'lucide-react';
+import { ArrowUpRight, Check, Copy, GitPullRequest, Lock } from 'lucide-react';
 import { applicantName, formatMoney, isOwnApplication, repoName, statusTone } from '../lib/model';
 import { PLATFORM } from '../lib/platform';
 import { useApp } from '../lib/store';
@@ -13,6 +13,8 @@ export function IssuePage() {
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState('');
   const [err, setErr] = useState('');
+  const [copyFallback, setCopyFallback] = useState(false);
+  const copyInput = useRef<HTMLInputElement>(null);
 
   const issue = state.issues.find(i => i.id === issueId);
   if (!issue) return <Navigate to="/explore" replace />;
@@ -24,6 +26,22 @@ export function IssuePage() {
   const taken = proposals.find(a => ['Assigned', 'PR submitted', 'Paid'].includes(a.status));
   const paid = taken?.status === 'Paid';
   const canApply = !mine && !taken;
+
+  const copyLink = async () => {
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('Clipboard API unavailable');
+      await navigator.clipboard.writeText(window.location.href);
+      setCopyFallback(false);
+      notify('Issue link copied.');
+    } catch {
+      setCopyFallback(true);
+      notify('Select the issue link below and copy it.');
+      window.setTimeout(() => {
+        copyInput.current?.focus();
+        copyInput.current?.select();
+      }, 0);
+    }
+  };
 
   const submit = () => {
     if (message.trim().length < 30) { setErr('Add at least 30 characters so the maintainer can judge your plan.'); return; }
@@ -60,7 +78,24 @@ export function IssuePage() {
                 <Chip>{issue.complexity}</Chip>
                 <Chip tone={paid ? '' : 'ok'}>{paid ? 'Paid out' : 'Escrowed'}</Chip>
               </div>
-              <h1>{issue.title}</h1>
+              <div className="detail-title-row">
+                <h1>{issue.title}</h1>
+                <button className="btn ghost sm" type="button" onClick={copyLink}>
+                  <Copy size={13} />Copy link
+                </button>
+              </div>
+              {copyFallback && (
+                <label className="copy-link-fallback">
+                  <input
+                    ref={copyInput}
+                    className="input"
+                    aria-label="Issue link; select and copy"
+                    readOnly
+                    value={window.location.href}
+                    onFocus={event => event.currentTarget.select()}
+                  />
+                </label>
+              )}
               <div className="row dim" style={{ gap: 7, fontSize: 'var(--t3)' }}>
                 <Avatar name={repo.org} org={repo.org} square />
                 <span>{repoName(repo)}</span>
