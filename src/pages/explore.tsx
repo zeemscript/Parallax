@@ -17,6 +17,8 @@ const TABS = [
 
 const SORTS = ['Newest', 'Bounty', 'Title'] as const;
 const LEVELS: (Complexity | 'Any')[] = ['Any', 'Trivial', 'Medium', 'High'];
+const BOUNTY_RANGES = ['Any', 'under $250', '$250–$750', 'over $750'] as const;
+type BountyRange = (typeof BOUNTY_RANGES)[number];
 
 export function Explore({ tab }: { tab: Tab }) {
   const { state } = useApp();
@@ -24,6 +26,7 @@ export function Explore({ tab }: { tab: Tab }) {
   const [params, setParams] = useSearchParams();
   const [q, setQ] = useState(params.get('q') ?? '');
   const [level, setLevel] = useState<Complexity | 'Any'>('Any');
+  const [bountyRange, setBountyRange] = useState<BountyRange>('Any');
   const [lang, setLang] = useState('Any');
   const [sort, setSort] = useState<(typeof SORTS)[number]>('Newest');
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -50,6 +53,11 @@ export function Explore({ tab }: { tab: Tab }) {
       const repo = accepted.find(r => r.id === issue.repoId);
       if (!repo) return false;
       if (level !== 'Any' && issue.complexity !== level) return false;
+      if (bountyRange !== 'Any') {
+        if (bountyRange === 'under $250' && !(issue.bounty < 250)) return false;
+        if (bountyRange === '$250–$750' && !(issue.bounty >= 250 && issue.bounty <= 750)) return false;
+        if (bountyRange === 'over $750' && !(issue.bounty > 750)) return false;
+      }
       if (lang !== 'Any' && !repo.languages.includes(lang)) return false;
       return `${issue.title} ${issue.id} ${repoName(repo)}`.toLowerCase().includes(needle);
     });
@@ -57,7 +65,7 @@ export function Explore({ tab }: { tab: Tab }) {
       sort === 'Bounty' ? b.bounty - a.bounty
         : sort === 'Title' ? a.title.localeCompare(b.title)
           : b.created.localeCompare(a.created));
-  }, [state.issues, accepted, level, lang, needle, sort]);
+  }, [state.issues, accepted, level, bountyRange, lang, needle, sort]);
 
   const repos = useMemo(
     () => accepted.filter(r =>
@@ -73,7 +81,7 @@ export function Explore({ tab }: { tab: Tab }) {
       .map(o => ({ org: o, repos: accepted.filter(r => r.org === o) }));
   }, [accepted, needle]);
 
-  const activeFilters = (level !== 'Any' ? 1 : 0) + (lang !== 'Any' ? 1 : 0);
+  const activeFilters = (level !== 'Any' ? 1 : 0) + (bountyRange !== 'Any' ? 1 : 0) + (lang !== 'Any' ? 1 : 0);
   const count = tab === 'issues' ? issues.length : tab === 'repos' ? repos.length : orgs.length;
 
   return (
@@ -140,6 +148,15 @@ export function Explore({ tab }: { tab: Tab }) {
                     </select>
                   </label>
                 )}
+                {tab === 'issues' && (
+                  <label className="field inline">
+                    <span>Bounty</span>
+                    <select className="select" aria-label="Bounty" value={bountyRange}
+                      onChange={e => setBountyRange(e.target.value as BountyRange)}>
+                      {BOUNTY_RANGES.map(b => <option key={b}>{b}</option>)}
+                    </select>
+                  </label>
+                )}
                 <label className="field inline">
                   <span>Language</span>
                   <select className="select" aria-label="Language" value={lang} onChange={e => setLang(e.target.value)}>
@@ -155,7 +172,7 @@ export function Explore({ tab }: { tab: Tab }) {
                     </select>
                   </label>
                 )}
-                <button className="btn sm ghost" onClick={() => { setLevel('Any'); setLang('Any'); setSort('Newest'); }}>
+                <button className="btn sm ghost" onClick={() => { setLevel('Any'); setBountyRange('Any'); setLang('Any'); setSort('Newest'); }}>
                   Reset
                 </button>
               </div>

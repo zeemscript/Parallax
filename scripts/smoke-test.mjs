@@ -81,6 +81,9 @@ try {
   await page.getByLabel('Complexity').selectOption('High');
   await settle();
   assert.equal(await page.locator('.list-row').count(), 2);
+  await page.getByLabel('Bounty').selectOption('over $750');
+  await settle();
+  assert.equal(await page.locator('.list-row').count(), 2);
   await page.getByRole('button', { name: 'Reset' }).click();
   await settle();
   assert.equal(await page.locator('.list-row').count(), 7);
