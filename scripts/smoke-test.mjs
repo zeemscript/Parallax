@@ -50,6 +50,21 @@ try {
     'top nav says List your repo');
   assert.equal(await page.getByText(/\bwave\b/i).count(), 0, 'no wave wording left on the landing page');
 
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.locator('.bit-spark-host').evaluate(el =>
+    el.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 1, clientY: 1 })),
+  );
+  assert.equal(await page.locator('.bit-spark').count(), 0, 'reduced motion suppresses click sparks');
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.waitForTimeout(100);
+  await page.locator('.bit-spark-host').evaluate(el =>
+    el.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 1, clientY: 1 })),
+  );
+  await page.waitForFunction(() => document.querySelectorAll('.bit-spark').length > 0);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.waitForFunction(() => document.querySelectorAll('.bit-spark').length === 0);
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+
   await page.getByRole('link', { name: /Explore issues/ }).first().click();
   await page.waitForURL('**/explore');
   await page.getByRole('heading', { name: 'Explore', exact: true }).waitFor();
