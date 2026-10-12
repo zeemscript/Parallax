@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowUpRight, Check, GitPullRequest, Lock } from 'lucide-react';
 import { applicantName, formatMoney, isOwnApplication, repoName, statusTone } from '../lib/model';
 import { PLATFORM } from '../lib/platform';
 import { useApp } from '../lib/store';
 import { Avatar, Chip, Crumbs, Empty, ModalHost, Page } from '../components/ui';
+import { NotFound } from '../components/NotFound';
 
 export function IssuePage() {
   const { issueId } = useParams();
@@ -15,7 +16,7 @@ export function IssuePage() {
   const [err, setErr] = useState('');
 
   const issue = state.issues.find(i => i.id === issueId);
-  if (!issue) return <Navigate to="/explore" replace />;
+  if (!issue) return <NotFound issue />;
 
   const repo = state.repos.find(r => r.id === issue.repoId)!;
   const me = state.session.contributor;

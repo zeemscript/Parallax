@@ -127,6 +127,10 @@ a.row-title:hover { text-decoration: underline; text-underline-offset: 2px; }
    ============================================================ */
 .detail-grid { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: var(--s7); align-items: start; }
 .detail-head { padding-bottom: var(--s4); border-bottom: 1px solid var(--line); margin-bottom: var(--s5); }
+.not-found-page { min-height: 65vh; display: grid; place-items: center; padding: var(--s8) var(--s4); }
+.not-found-card { width: min(100%, 520px); padding: var(--s7); border: 1px solid var(--line); border-radius: var(--r4); background: var(--surface); }
+.not-found-card h1 { margin: var(--s2) 0; }
+.not-found-card > p:not(.label) { margin: 0 0 var(--s5); }
 .detail-head h1 { margin: var(--s3) 0 var(--s3); font-size: var(--t7); line-height: 1.25; }
 .prose h2 { font-size: var(--t5); margin-bottom: var(--s2); }
 .prose h2 + p { font-size: var(--t4); color: var(--ink-2); }

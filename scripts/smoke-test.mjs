@@ -264,6 +264,16 @@ try {
   await page.locator('.rail.open').getByRole('link', { name: 'Connect a repo' }).click();
   await page.waitForURL('**/maintainer/submit');
 
+  // ------------------------------------------------------------- not-found UI
+  await go('/missing-route');
+  await page.getByRole('heading', { name: 'Page not found' }).waitFor();
+  assert.equal(await page.title(), 'Page not found | Parallax');
+  assert.ok(await page.getByRole('link', { name: /Explore issues/ }).isVisible());
+  assert.ok(await page.getByRole('link', { name: 'Home', exact: true }).isVisible());
+  await go('/issue/not-a-real-issue');
+  await page.getByRole('heading', { name: 'Issue not found' }).waitFor();
+  assert.equal(await page.title(), 'Issue not found | Parallax');
+
   assert.deepEqual(errors, []);
   console.log('Passed: public explore (no dashboard chrome), search/tabs/filters, contributor apply and persistence, separate maintainer sign-in, connect-then-verify gate, per-repo dashboards scoped by owner and verification, proposal assignment, posting a funded issue, payout address validation, merge-and-release writing a receipt, theme persistence, 15 routes at 5 widths with no overflow, and the mobile drawer.');
 } catch (error) {
