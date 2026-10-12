@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { useReducedMotion } from './motion';
 
 /**
  * MoltenMetal — flowing liquid-metal background.
@@ -85,11 +86,12 @@ function compile(gl: WebGLRenderingContext, type: number, src: string) {
 
 export function MoltenMetal({ className = '' }: { className?: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
+  const prefersReducedMotion = useReducedMotion();
 
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas) return;
-    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (prefersReducedMotion) return;
 
     const gl = canvas.getContext('webgl', { antialias: false, alpha: false, powerPreference: 'low-power' });
     if (!gl) return;
@@ -183,7 +185,7 @@ export function MoltenMetal({ className = '' }: { className?: string }) {
       gl.deleteShader(fs);
       gl.deleteBuffer(buf);
     };
-  }, []);
+  }, [prefersReducedMotion]);
 
   return <canvas ref={ref} className={`bit-metal ${className}`} aria-hidden="true" />;
 }
