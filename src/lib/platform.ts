@@ -13,6 +13,10 @@ export const PLATFORM = {
   network: 'testnet',
   /** Bounty asset. */
   asset: 'USDC',
+  /** Optional deployed escrow contract id, supplied by the hosting environment. */
+  contractId: import.meta.env.VITE_ESCROW_CONTRACT_ID?.trim() ?? '',
+  /** Stellar Expert base path for the configured network's contracts. */
+  contractExplorerUrl: 'https://stellar.expert/explorer/testnet/contract',
 } as const;
 
 /** GitHub's language colours, so language dots read the way contributors expect. */

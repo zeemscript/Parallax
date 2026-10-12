@@ -464,6 +464,17 @@ export function Landing() {
             {PLATFORM.name} — {PLATFORM.tagline.toLowerCase()}. Preview: no GitHub, wallet, or funds are connected yet.
           </span>
           <div className="row" style={{ gap: 14 }}>
+            {PLATFORM.contractId && (
+              <a
+                className="dim"
+                href={`${PLATFORM.contractExplorerUrl}/${encodeURIComponent(PLATFORM.contractId)}`}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={`${PLATFORM.chain} ${PLATFORM.network} escrow contract ${PLATFORM.contractId}`}
+              >
+                {PLATFORM.network} escrow <span className="mono">{PLATFORM.contractId.slice(0, 5)}…{PLATFORM.contractId.slice(-5)}</span>
+              </a>
+            )}
             <Link className="dim" to="/explore">Explore</Link>
             <Link className="dim" to="/maintainer/login">List your repo</Link>
           </div>
