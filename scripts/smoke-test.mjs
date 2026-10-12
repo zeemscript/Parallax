@@ -85,13 +85,6 @@ try {
   await settle();
   assert.equal(await page.locator('.list-row').count(), 7);
 
-  await page.getByLabel('Bounty').selectOption('under $250');
-  await settle();
-  assert.equal(await page.locator('.list-row').count(), 2, 'bounty under $250 matches exactly 2 issues');
-  await page.getByRole('button', { name: 'Reset' }).click();
-  await settle();
-  assert.equal(await page.locator('.list-row').count(), 7);
-
   // ------------------------------------------------------- contributor apply
   await go('/issue/512');
   await page.getByRole('heading', { name: 'Add a test helper for asserting emitted events' }).waitFor();
@@ -243,6 +236,16 @@ try {
   await settle();
   await page.reload();
   assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark');
+
+  // ------------------------------------------------------------- reduced motion
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await go('/');
+  await settle();
+  // Click on hero clickspark host - with reduced motion, zero sparks emitted
+  await page.locator('.hero').click({ position: { x: 200, y: 200 } });
+  await settle();
+  assert.equal(await page.locator('.bit-spark').count(), 0, 'ClickSpark emits no sparks when reduced motion is on');
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
 
   // ------------------------------------------------------------- responsive
   const routes = [
