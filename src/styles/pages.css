@@ -233,6 +233,8 @@ a.row-title:hover { text-decoration: underline; text-underline-offset: 2px; }
   .hero-title { font-size: var(--t7); }
   .hero-sub { font-size: var(--t4); }
   .hide-sm { display: none; }
+  .proposal-chip { padding: 0 6px; }
+  .proposal-chip-label { display: none; }
   .hero-cta .btn { flex: 1; }
   .explore-bar { gap: 6px; }
   .explore-search { flex-basis: 100%; order: -1; }

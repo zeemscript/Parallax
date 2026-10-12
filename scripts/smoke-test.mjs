@@ -105,6 +105,18 @@ try {
   await go('/me');
   assert.equal(await page.locator('.list-row').count(), 1, 'assignment appears in contributor workspace');
 
+  await go('/explore');
+  await settle();
+  assert.equal(await page.locator('.proposal-chip').count(), 1, 'signed-in contributor sees own proposal chip on Explore');
+  assert.equal(await page.locator('.proposal-chip').first().innerText(), 'Applied');
+  await page.getByRole('button', { name: 'Filters' }).click();
+  await page.getByRole('button', { name: 'Only mine' }).click();
+  await settle();
+  assert.equal(await page.locator('.list-row').count(), 1, 'Only mine filter narrows to contributor proposals');
+  await page.getByRole('button', { name: 'Reset' }).click();
+  await settle();
+  assert.equal(await page.locator('.list-row').count(), 7);
+
   // ------------------------------------------- maintainer is a separate login
   await go('/maintainer');
   await page.waitForURL('**/maintainer/login');
