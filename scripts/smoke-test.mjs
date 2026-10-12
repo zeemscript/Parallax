@@ -237,6 +237,16 @@ try {
   await page.reload();
   assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark');
 
+  // ------------------------------------------------------------- reduced motion
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await go('/');
+  await settle();
+  // Click on hero clickspark host - with reduced motion, zero sparks emitted
+  await page.locator('.hero').click({ position: { x: 200, y: 200 } });
+  await settle();
+  assert.equal(await page.locator('.bit-spark').count(), 0, 'ClickSpark emits no sparks when reduced motion is on');
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+
   // ------------------------------------------------------------- responsive
   const routes = [
     '/', '/explore', '/explore/repos', '/explore/orgs', '/issue/842',

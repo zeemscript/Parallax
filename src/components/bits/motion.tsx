@@ -15,7 +15,7 @@ import {
 const EASE = [0.2, 0.8, 0.2, 1] as const;
 
 /** True when the OS asks for reduced motion. Reveals then render immediately. */
-function useReducedMotion() {
+export function useReducedMotion() {
   const [reduced, setReduced] = useState(
     () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches,
   );
@@ -183,11 +183,17 @@ export function Magnet({
 }: {
   children: ReactNode; strength?: number; radius?: number; className?: string;
 }) {
+  const reduced = useReducedMotion();
   const ref = useRef<HTMLSpanElement>(null);
   const x = useSpring(useMotionValue(0), { stiffness: 260, damping: 22 });
   const y = useSpring(useMotionValue(0), { stiffness: 260, damping: 22 });
 
   useEffect(() => {
+    if (reduced) {
+      x.set(0);
+      y.set(0);
+      return;
+    }
     const el = ref.current;
     if (!el) return;
     const onMove = (e: PointerEvent) => {
@@ -206,7 +212,11 @@ export function Magnet({
     };
     window.addEventListener('pointermove', onMove, { passive: true });
     return () => window.removeEventListener('pointermove', onMove);
-  }, [x, y, strength, radius]);
+  }, [reduced, x, y, strength, radius]);
+
+  if (reduced) {
+    return <span className={`bit-magnet ${className}`.trim()}>{children}</span>;
+  }
 
   return (
     <motion.span ref={ref} className={`bit-magnet ${className}`} style={{ x, y }}>
@@ -218,11 +228,13 @@ export function Magnet({
 /* -------------------------------------------------------------- ClickSpark */
 /** Emits a short burst of rays wherever the user clicks inside. */
 export function ClickSpark({ children }: { children: ReactNode }) {
+  const reduced = useReducedMotion();
   const [sparks, setSparks] = useState<{ id: number; x: number; y: number }[]>([]);
   const ref = useRef<HTMLDivElement>(null);
   const next = useRef(0);
 
   const onClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (reduced) return;
     const el = ref.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
@@ -234,7 +246,8 @@ export function ClickSpark({ children }: { children: ReactNode }) {
   return (
     <div ref={ref} className="bit-spark-host" onClick={onClick}>
       {children}
-      <AnimatePresence>
+      {!reduced && (
+        <AnimatePresence>
         {sparks.map(s => (
           <span key={s.id} className="bit-spark" style={{ left: s.x, top: s.y }} aria-hidden="true">
             {Array.from({ length: 8 }).map((_, i) => (
@@ -250,6 +263,7 @@ export function ClickSpark({ children }: { children: ReactNode }) {
           </span>
         ))}
       </AnimatePresence>
+      )}
     </div>
   );
 }
