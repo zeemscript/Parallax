@@ -128,6 +128,10 @@ a.row-title:hover { text-decoration: underline; text-underline-offset: 2px; }
 .detail-grid { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: var(--s7); align-items: start; }
 .detail-head { padding-bottom: var(--s4); border-bottom: 1px solid var(--line); margin-bottom: var(--s5); }
 .detail-head h1 { margin: var(--s3) 0 var(--s3); font-size: var(--t7); line-height: 1.25; }
+.detail-title-row { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); flex-wrap: wrap; }
+.detail-title-row h1 { min-width: 0; }
+.copy-link-fallback { display: block; margin: 0 0 var(--s3); }
+.copy-link-fallback .input { width: min(100%, 34rem); }
 .prose h2 { font-size: var(--t5); margin-bottom: var(--s2); }
 .prose h2 + p { font-size: var(--t4); color: var(--ink-2); }
 .prose > * + h2 { margin-top: var(--s5); }
