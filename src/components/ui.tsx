@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
@@ -154,14 +154,37 @@ export function Segmented<T extends string>({
   onChange: (v: T) => void;
   idPrefix: string;
 }) {
+  const moveFocus = (event: ReactKeyboardEvent<HTMLButtonElement>, index: number) => {
+    if (!options.length) return;
+    let nextIndex: number;
+    switch (event.key) {
+      case 'ArrowRight': nextIndex = (index + 1) % options.length; break;
+      case 'ArrowLeft': nextIndex = (index - 1 + options.length) % options.length; break;
+      case 'Home': nextIndex = 0; break;
+      case 'End': nextIndex = options.length - 1; break;
+      default: return;
+    }
+    event.preventDefault();
+    onChange(options[nextIndex].value);
+    window.setTimeout(() => {
+      const tablist = [...document.querySelectorAll<HTMLElement>('[data-segmented]')]
+        .find(element => element.dataset.segmented === idPrefix);
+      const targetValue = options[nextIndex].value;
+      tablist?.querySelector<HTMLButtonElement>(`[role="tab"][data-segment-value="${targetValue}"]`)?.focus();
+    }, 50);
+  };
+
   return (
-    <div className="seg" role="tablist">
+    <div className="seg" role="tablist" data-segmented={idPrefix}>
       {options.map(opt => (
         <button
           key={opt.value}
           role="tab"
           aria-selected={value === opt.value}
+          tabIndex={value === opt.value ? 0 : -1}
+          data-segment-value={opt.value}
           data-on={value === opt.value}
+          onKeyDown={event => moveFocus(event, options.findIndex(item => item.value === opt.value))}
           onClick={() => onChange(opt.value)}
         >
           {value === opt.value && (
