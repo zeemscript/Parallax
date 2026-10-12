@@ -42,21 +42,6 @@
 @keyframes bit-drift-b { to { transform: translate3d(-11%, 8%, 0) scale(1.08); } }
 @keyframes bit-drift-c { to { transform: translate3d(6%, -12%, 0) scale(1.16); } }
 
-/* --------------------------------------------------------------- DotGrid */
-.bit-dotgrid {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  --mx: 50%; --my: 50%;
-  background-image: radial-gradient(circle at center, var(--ink-4) 1px, transparent 1px);
-  background-size: 22px 22px;
-  opacity: .22;
-  -webkit-mask-image: radial-gradient(320px circle at var(--mx) var(--my), #000 0%, rgba(0,0,0,.35) 45%, transparent 78%);
-  mask-image: radial-gradient(320px circle at var(--mx) var(--my), #000 0%, rgba(0,0,0,.35) 45%, transparent 78%);
-}
-:root[data-theme='dark'] .bit-dotgrid { opacity: .4; }
-
 /* ---------------------------------------------------------- GradientText */
 .bit-gradient {
   background: linear-gradient(96deg, var(--acc-3) 0%, var(--acc) 42%, var(--acc-2) 100%);
@@ -68,45 +53,9 @@
 }
 @keyframes bit-pan { to { background-position: 220% 0; } }
 
-/* ------------------------------------------------------------- ShinyText */
-.bit-shiny {
-  position: relative;
-  background: linear-gradient(110deg, var(--ink-3) 40%, var(--ink) 50%, var(--ink-3) 60%);
-  background-size: 250% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation: bit-shine 4.5s linear infinite;
-}
-@keyframes bit-shine { to { background-position: -250% 0; } }
-
 /* -------------------------------------------------------------- SplitText */
 .bit-split-word { display: inline-block; overflow: hidden; vertical-align: bottom; }
 .bit-split-inner { display: inline-block; will-change: transform; }
-
-/* ---------------------------------------------------------- SpotlightCard */
-.bit-spotlight {
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: var(--r3);
-  background: var(--panel);
-  --sx: 50%; --sy: 50%;
-  transition: border-color var(--base) var(--ease), transform var(--base) var(--ease);
-}
-.bit-spotlight:hover { border-color: var(--acc-line); transform: translateY(-2px); }
-.bit-spotlight-glow {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  opacity: 0;
-  pointer-events: none;
-  background: radial-gradient(260px circle at var(--sx) var(--sy), var(--acc-soft), transparent 72%);
-  transition: opacity var(--base) var(--ease);
-}
-.bit-spotlight:hover .bit-spotlight-glow { opacity: 1; }
-.bit-spotlight-body { position: relative; z-index: 1; display: block; }
 
 /* -------------------------------------------------------------- StarBorder */
 .bit-starborder {
@@ -163,21 +112,6 @@
 .bit-rotate-sizer { visibility: hidden; white-space: nowrap; }
 .bit-rotate-word { position: absolute; inset: 0; white-space: nowrap; }
 
-/* ----------------------------------------------------------------- Marquee */
-.bit-marquee {
-  overflow: hidden;
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
-  mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
-}
-.bit-marquee-track {
-  display: flex;
-  width: max-content;
-  animation: bit-scroll linear infinite;
-}
-.bit-marquee:hover .bit-marquee-track { animation-play-state: paused; }
-.bit-marquee-set { display: flex; align-items: center; gap: var(--s7); padding-right: var(--s7); }
-@keyframes bit-scroll { to { transform: translateX(-50%); } }
-
 /* -------------------------------------------------------------- GlareHover */
 .bit-glare { position: relative; display: inline-flex; overflow: hidden; border-radius: inherit; }
 .bit-glare-sheen {
@@ -203,7 +137,5 @@
 @media (prefers-reduced-motion: reduce) {
   .bit-aurora span,
   .bit-gradient,
-  .bit-shiny,
-  .bit-starborder-ring,
-  .bit-marquee-track { animation: none !important; }
+  .bit-starborder-ring { animation: none !important; }
 }

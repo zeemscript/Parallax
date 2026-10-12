@@ -6,10 +6,10 @@
  * this project's design tokens and the `motion` runtime already in use.
  */
 import {
-  useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode,
+  useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode,
 } from 'react';
 import {
-  AnimatePresence, motion, useInView, useMotionValue, useSpring, useTransform,
+  AnimatePresence, motion, useInView, useMotionValue, useSpring,
 } from 'motion/react';
 
 const EASE = [0.2, 0.8, 0.2, 1] as const;
@@ -40,33 +40,9 @@ export function Aurora({ className = '' }: { className?: string }) {
   );
 }
 
-/* ----------------------------------------------------------------- DotGrid */
-/** Dot lattice that brightens around the cursor. */
-export function DotGrid({ className = '' }: { className?: string }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const onMove = (e: PointerEvent) => {
-      const r = el.getBoundingClientRect();
-      el.style.setProperty('--mx', `${e.clientX - r.left}px`);
-      el.style.setProperty('--my', `${e.clientY - r.top}px`);
-    };
-    window.addEventListener('pointermove', onMove, { passive: true });
-    return () => window.removeEventListener('pointermove', onMove);
-  }, []);
-  return <div ref={ref} className={`bit-dotgrid ${className}`} aria-hidden="true" />;
-}
-
 /* ------------------------------------------------------------ GradientText */
 export function GradientText({ children, className = '' }: { children: ReactNode; className?: string }) {
   return <span className={`bit-gradient ${className}`}>{children}</span>;
-}
-
-/* --------------------------------------------------------------- ShinyText */
-/** Light sweeps across the text on a loop. */
-export function ShinyText({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <span className={`bit-shiny ${className}`}>{children}</span>;
 }
 
 /* ---------------------------------------------------------------- SplitText */
@@ -136,30 +112,6 @@ export function CountUp({
     <span ref={ref} className={`num ${className}`}>
       {prefix}{value.toLocaleString('en-US')}{suffix}
     </span>
-  );
-}
-
-/* ----------------------------------------------------------- SpotlightCard */
-/** Radial highlight that tracks the cursor across the card. */
-export function SpotlightCard({
-  children, className = '', as = 'div',
-}: {
-  children: ReactNode; className?: string; as?: 'div' | 'article';
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const onMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    const el = ref.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    el.style.setProperty('--sx', `${e.clientX - r.left}px`);
-    el.style.setProperty('--sy', `${e.clientY - r.top}px`);
-  }, []);
-  const Tag = as as 'div';
-  return (
-    <Tag ref={ref} className={`bit-spotlight ${className}`} onPointerMove={onMove}>
-      <span className="bit-spotlight-glow" aria-hidden="true" />
-      <span className="bit-spotlight-body">{children}</span>
-    </Tag>
   );
 }
 
@@ -318,26 +270,6 @@ export function AnimatedContent({
   );
 }
 
-/* ----------------------------------------------------------------- Marquee */
-/** Seamless infinite strip. Content is duplicated so the loop never gaps. */
-export function Marquee({
-  children, speed = 34, reverse = false, className = '',
-}: {
-  children: ReactNode; speed?: number; reverse?: boolean; className?: string;
-}) {
-  return (
-    <div className={`bit-marquee ${className}`}>
-      <div
-        className="bit-marquee-track"
-        style={{ animationDuration: `${speed}s`, animationDirection: reverse ? 'reverse' : 'normal' } as CSSProperties}
-      >
-        <div className="bit-marquee-set">{children}</div>
-        <div className="bit-marquee-set" aria-hidden="true">{children}</div>
-      </div>
-    </div>
-  );
-}
-
 /* -------------------------------------------------------------- GlareHover */
 /** Diagonal sheen that sweeps once on hover. */
 export function GlareHover({ children, className = '' }: { children: ReactNode; className?: string }) {
@@ -346,33 +278,6 @@ export function GlareHover({ children, className = '' }: { children: ReactNode; 
       {children}
       <span className="bit-glare-sheen" aria-hidden="true" />
     </span>
-  );
-}
-
-/* ------------------------------------------------------------- TiltedCard */
-/** Subtle 3D tilt following the pointer. */
-export function TiltedCard({ children, className = '', max = 7 }: { children: ReactNode; className?: string; max?: number }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const mx = useMotionValue(0);
-  const my = useMotionValue(0);
-  const rx = useSpring(useTransform(my, [-0.5, 0.5], [max, -max]), { stiffness: 220, damping: 20 });
-  const ry = useSpring(useTransform(mx, [-0.5, 0.5], [-max, max]), { stiffness: 220, damping: 20 });
-
-  return (
-    <motion.div
-      ref={ref}
-      className={className}
-      style={{ rotateX: rx, rotateY: ry, transformPerspective: 900 }}
-      onPointerMove={e => {
-        const r = ref.current?.getBoundingClientRect();
-        if (!r) return;
-        mx.set((e.clientX - r.left) / r.width - 0.5);
-        my.set((e.clientY - r.top) / r.height - 0.5);
-      }}
-      onPointerLeave={() => { mx.set(0); my.set(0); }}
-    >
-      {children}
-    </motion.div>
   );
 }
 
