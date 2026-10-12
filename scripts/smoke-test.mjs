@@ -50,6 +50,14 @@ try {
     'top nav says List your repo');
   assert.equal(await page.getByText(/\bwave\b/i).count(), 0, 'no wave wording left on the landing page');
 
+  // open graph and twitter card meta tags
+  const ogTitle = await page.locator('meta[property="og:title"]').getAttribute('content');
+  const ogImage = await page.locator('meta[property="og:image"]').getAttribute('content');
+  const twitterCard = await page.locator('meta[name="twitter:card"]').getAttribute('content');
+  assert.equal(ogTitle, 'Parallax — bounties settled on Stellar', 'og:title is set');
+  assert.equal(ogImage, '/og-image.png', 'og:image is set');
+  assert.equal(twitterCard, 'summary_large_image', 'twitter:card is summary_large_image');
+
   await page.getByRole('link', { name: /Explore issues/ }).first().click();
   await page.waitForURL('**/explore');
   await page.getByRole('heading', { name: 'Explore', exact: true }).waitFor();

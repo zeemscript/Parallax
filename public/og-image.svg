@@ -1,0 +1,160 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <radialGradient id="bg-glow" cx="60%" cy="35%" r="70%">
+      <stop offset="0%" stop-color="#2e1065" stop-opacity="0.6"/>
+      <stop offset="50%" stop-color="#0f0728" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#08070c" stop-opacity="1"/>
+    </radialGradient>
+    <linearGradient id="purple-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#c084fc"/>
+      <stop offset="50%" stop-color="#a855f7"/>
+      <stop offset="100%" stop-color="#7e22ce"/>
+    </linearGradient>
+    <linearGradient id="line-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#a855f7" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#a855f7" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="630" fill="#08070c"/>
+  <rect width="1200" height="630" fill="url(#bg-glow)"/>
+
+  <!-- Subtle grid pattern -->
+  <g stroke="#ffffff" stroke-opacity="0.04" stroke-width="1">
+    <line x1="0" y1="105" x2="1200" y2="105"/>
+    <line x1="0" y1="210" x2="1200" y2="210"/>
+    <line x1="0" y1="315" x2="1200" y2="315"/>
+    <line x1="0" y1="420" x2="1200" y2="420"/>
+    <line x1="0" y1="525" x2="1200" y2="525"/>
+    <line x1="200" y1="0" x2="200" y2="630"/>
+    <line x1="400" y1="0" x2="400" y2="630"/>
+    <line x1="600" y1="0" x2="600" y2="630"/>
+    <line x1="800" y1="0" x2="800" y2="630"/>
+    <line x1="1000" y1="0" x2="1000" y2="630"/>
+  </g>
+
+  <!-- Brand Mark Icon (scaled from favicon) -->
+  <g transform="translate(100, 110)">
+    <rect width="100" height="100" rx="24" fill="#130e24" stroke="#3b1f63" stroke-width="2"/>
+    <g transform="translate(10, 10) scale(2)">
+      <path d="M9 31 18 9" stroke="url(#purple-grad)" stroke-width="4.5" stroke-linecap="round"/>
+      <path d="M22 31 31 9" stroke="url(#purple-grad)" stroke-width="4.5" stroke-linecap="round" opacity=".55"/>
+    </g>
+  </g>
+
+  <!-- Brand Name -->
+  <text x="225" y="175" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="52" font-weight="800" fill="#f8fafc" letter-spacing="-1">Parallax</text>
+  <rect x="100" y="240" width="300" height="3" fill="url(#line-grad)"/>
+
+  <!-- Main Headline / Value Proposition -->
+  <text x="100" y="325" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="46" font-weight="700" fill="#f3e8ff" letter-spacing="-0.5">
+    Open-source bounties settled on Stellar
+  </text>
+
+  <!-- Tagline / Secondary Description -->
+  <text x="100" y="395" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="24" font-weight="400" fill="#cbd5e1">
+    Per-issue USDC rewards escrowed by smart contract.
+  </text><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <radialGradient id="bg-glow" cx="60%" cy="35%" r="70%">
+      <stop offset="0%" stop-color="#2e1065" stop-opacity="0.6"/>
+      <stop offset="50%" stop-color="#0f0728" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#08070c" stop-opacity="1"/>
+    </radialGradient>
+    <linearGradient id="purple-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#c084fc"/>
+      <stop offset="50%" stop-color="#a855f7"/>
+      <stop offset="100%" stop-color="#7e22ce"/>
+    </linearGradient>
+    <linearGradient id="line-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#a855f7" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#a855f7" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="630" fill="#08070c"/>
+  <rect width="1200" height="630" fill="url(#bg-glow)"/>
+
+  <!-- Subtle grid pattern -->
+  <g stroke="#ffffff" stroke-opacity="0.04" stroke-width="1">
+    <line x1="0" y1="105" x2="1200" y2="105"/>
+    <line x1="0" y1="210" x2="1200" y2="210"/>
+    <line x1="0" y1="315" x2="1200" y2="315"/>
+    <line x1="0" y1="420" x2="1200" y2="420"/>
+    <line x1="0" y1="525" x2="1200" y2="525"/>
+    <line x1="200" y1="0" x2="200" y2="630"/>
+    <line x1="400" y1="0" x2="400" y2="630"/>
+    <line x1="600" y1="0" x2="600" y2="630"/>
+    <line x1="800" y1="0" x2="800" y2="630"/>
+    <line x1="1000" y1="0" x2="1000" y2="630"/>
+  </g>
+
+  <!-- Brand Mark Icon (scaled from favicon) -->
+  <g transform="translate(100, 110)">
+    <rect width="100" height="100" rx="24" fill="#130e24" stroke="#3b1f63" stroke-width="2"/>
+    <g transform="translate(10, 10) scale(2)">
+      <path d="M9 31 18 9" stroke="url(#purple-grad)" stroke-width="4.5" stroke-linecap="round"/>
+      <path d="M22 31 31 9" stroke="url(#purple-grad)" stroke-width="4.5" stroke-linecap="round" opacity=".55"/>
+    </g>
+  </g>
+
+  <!-- Brand Name -->
+  <text x="225" y="175" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="52" font-weight="800" fill="#f8fafc" letter-spacing="-1">Parallax</text>
+  <rect x="100" y="240" width="300" height="3" fill="url(#line-grad)"/>
+
+  <!-- Main Headline / Value Proposition -->
+  <text x="100" y="325" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="46" font-weight="700" fill="#f3e8ff" letter-spacing="-0.5">
+    Open-source bounties settled on Stellar
+  </text>
+
+  <!-- Tagline / Secondary Description -->
+  <text x="100" y="395" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="24" font-weight="400" fill="#cbd5e1">
+    Per-issue USDC rewards escrowed by smart contract.
+  </text>
+  <text x="100" y="435" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="24" font-weight="400" fill="#94a3b8">
+    Paid automatically the moment your pull request merges.
+  </text>
+
+  <!-- Badges / Pill Tags -->
+  <g transform="translate(100, 495)">
+    <!-- Badge 1: Instant Settlement -->
+    <rect x="0" y="0" width="210" height="42" rx="21" fill="#1e1035" stroke="#4c1d95" stroke-width="1.5"/>
+    <circle cx="22" cy="21" r="6" fill="#a855f7"/>
+    <text x="38" y="28" font-family="system-ui, sans-serif" font-size="16" font-weight="600" fill="#e9d5ff">Instant Settlement</text>
+
+    <!-- Badge 2: Escrowed on Stellar -->
+    <rect x="228" y="0" width="220" height="42" rx="21" fill="#1e1035" stroke="#4c1d95" stroke-width="1.5"/>
+    <circle cx="250" cy="21" r="6" fill="#38bdf8"/>
+    <text x="266" y="28" font-family="system-ui, sans-serif" font-size="16" font-weight="600" fill="#e0f2fe">Escrowed on Stellar</text>
+
+    <!-- Badge 3: Zero Platform Fee -->
+    <rect x="466" y="0" width="180" height="42" rx="21" fill="#1e1035" stroke="#4c1d95" stroke-width="1.5"/>
+    <circle cx="488" cy="21" r="6" fill="#4ade80"/>
+    <text x="504" y="28" font-family="system-ui, sans-serif" font-size="16" font-weight="600" fill="#dcfce7">USDC Payouts</text>
+  </g>
+</svg>
+
+  <text x="100" y="435" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="24" font-weight="400" fill="#94a3b8">
+    Paid automatically the moment your pull request merges.
+  </text>
+
+  <!-- Badges / Pill Tags -->
+  <g transform="translate(100, 495)">
+    <!-- Badge 1: Instant Settlement -->
+    <rect x="0" y="0" width="210" height="42" rx="21" fill="#1e1035" stroke="#4c1d95" stroke-width="1.5"/>
+    <circle cx="22" cy="21" r="6" fill="#a855f7"/>
+    <text x="38" y="28" font-family="system-ui, sans-serif" font-size="16" font-weight="600" fill="#e9d5ff">Instant Settlement</text>
+
+    <!-- Badge 2: Escrowed on Stellar -->
+    <rect x="228" y="0" width="220" height="42" rx="21" fill="#1e1035" stroke="#4c1d95" stroke-width="1.5"/>
+    <circle cx="250" cy="21" r="6" fill="#38bdf8"/>
+    <text x="266" y="28" font-family="system-ui, sans-serif" font-size="16" font-weight="600" fill="#e0f2fe">Escrowed on Stellar</text>
+
+    <!-- Badge 3: Zero Platform Fee -->
+    <rect x="466" y="0" width="180" height="42" rx="21" fill="#1e1035" stroke="#4c1d95" stroke-width="1.5"/>
+    <circle cx="488" cy="21" r="6" fill="#4ade80"/>
+    <text x="504" y="28" font-family="system-ui, sans-serif" font-size="16" font-weight="600" fill="#dcfce7">USDC Payouts</text>
+  </g>
+</svg>
