@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, GitPullRequest } from 'lucide-react';
+import { ArrowRight, Download, GitPullRequest } from 'lucide-react';
 import {
   dateLabel, formatMoney, initialState, isOwnApplication, isStellarAddress, repoName, shortAddress, statusTone,
 } from '../lib/model';
 import { PLATFORM } from '../lib/platform';
 import { useApp } from '../lib/store';
+import { receiptsToCsv } from '../lib/receiptsCsv.js';
 import { Chip, Empty, Item, ModalHost, Page, PageHead, Stagger } from '../components/ui';
 
 export function ContributorWork() {
@@ -88,10 +89,35 @@ export function ContributorWork() {
 }
 
 export function ContributorReceipts() {
-  const { state } = useApp();
+  const { state, notify } = useApp();
   const me = state.session.contributor;
   const mine = state.receipts.filter(r => r.contributor === me);
   const total = mine.reduce((sum, r) => sum + r.amount, 0);
+
+  const exportCsv = () => {
+    const csv = receiptsToCsv(mine.map(receipt => {
+      const issue = state.issues.find(item => item.id === receipt.issueId);
+      const repo = state.repos.find(item => item.id === receipt.repoId);
+      return {
+        id: receipt.id,
+        date: receipt.paidAt,
+        repository: repo ? repoName(repo) : '',
+        issueNumber: receipt.issueId,
+        issueTitle: issue?.title ?? `Issue #${receipt.issueId}`,
+        pullRequest: receipt.pr,
+        amount: receipt.amount,
+        asset: PLATFORM.asset,
+        payoutAddress: receipt.address ?? '',
+      };
+    }));
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'parallax-receipts.csv';
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+    notify('Receipts exported as CSV.');
+  };
 
   return (
     <Page>
@@ -114,7 +140,13 @@ export function ContributorReceipts() {
         </div>
       </div>
       <section className="section">
-        <div className="row section-head"><h2>Ledger</h2></div>
+        <div className="row section-head">
+          <h2>Ledger</h2>
+          <span className="spacer" />
+          <button className="btn sm" type="button" onClick={exportCsv} disabled={!mine.length}>
+            <Download size={13} />Export CSV
+          </button>
+        </div>
         {mine.length ? (
           <Stagger className="list">
             {mine.map(r => {
