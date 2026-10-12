@@ -22,8 +22,17 @@ import { MaintainerHome, MaintainerSubmit, RepoDashboard, RepoIssues, RepoSettin
 /* ------------------------------------------------------------------ theme */
 
 function useTheme() {
-  const [theme, setTheme] = useState(() => {
-    try { return localStorage.getItem('parallax-theme') || 'dark'; } catch { return 'dark'; }
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    try {
+      const saved = localStorage.getItem('parallax-theme');
+      if (saved === 'light' || saved === 'dark') return saved;
+      if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: light)').matches) {
+        return 'light';
+      }
+      return 'dark';
+    } catch {
+      return 'dark';
+    }
   });
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
