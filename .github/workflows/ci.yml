@@ -66,13 +66,17 @@ jobs:
       - name: Test
         run: cargo test
 
-      # soroban-sdk 28 needs Stellar CLI 25.2+ to build. rust-cache keeps the binary between runs.
+      # soroban-sdk 28 needs Stellar CLI 25.2+ to build. Prebuilt binary installs in seconds instead of a 10-minute cargo compile.
       - name: Install Stellar CLI
+        env:
+          STELLAR_CLI_VERSION: "28.1.0"
         run: |
           if ! command -v stellar >/dev/null; then
-            sudo apt-get update && sudo apt-get install -y libdbus-1-dev libudev-dev
-            cargo install --locked stellar-cli
+            echo "Installing prebuilt Stellar CLI v${STELLAR_CLI_VERSION}..."
+            curl -fsSL "https://github.com/stellar/stellar-cli/releases/download/v${STELLAR_CLI_VERSION}/stellar-cli-${STELLAR_CLI_VERSION}-x86_64-unknown-linux-gnu.tar.gz" | sudo tar -xzf - -C /usr/local/bin
+            sudo chmod +x /usr/local/bin/stellar
           fi
+          stellar --version
 
       - name: Build wasm
         run: stellar contract build
