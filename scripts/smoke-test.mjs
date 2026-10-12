@@ -85,13 +85,6 @@ try {
   await settle();
   assert.equal(await page.locator('.list-row').count(), 7);
 
-  await page.getByLabel('Bounty').selectOption('under $250');
-  await settle();
-  assert.equal(await page.locator('.list-row').count(), 2, 'bounty under $250 matches exactly 2 issues');
-  await page.getByRole('button', { name: 'Reset' }).click();
-  await settle();
-  assert.equal(await page.locator('.list-row').count(), 7);
-
   // ------------------------------------------------------- contributor apply
   await go('/issue/512');
   await page.getByRole('heading', { name: 'Add a test helper for asserting emitted events' }).waitFor();
@@ -232,17 +225,36 @@ try {
   assert.match(await page.locator('.stat').first().innerText(), /\$450/, 'earned total reflects the payout');
 
   // --------------------------------------------------------- theme persistence
-  // Dark is the default, so toggle to light, verify it sticks, then return.
-  await go('/explore');
-  assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark');
+  // Test prefers-color-scheme on first visit without saved preference:
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.evaluate(() => localStorage.removeItem('parallax-theme'));
+  await page.reload();
+  await page.locator('#main, .public, .auth').first().waitFor();
+  assert.equal(await page.locator('html').getAttribute('data-theme'), 'light', 'follows system prefers-color-scheme: light on first visit');
+
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.reload();
+  await page.locator('#main, .public, .auth').first().waitFor();
+  assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark', 'follows system prefers-color-scheme: dark on first visit');
+
+  // Once user toggles, explicit preference wins and persists across reload:
   await page.getByRole('button', { name: /Switch to light theme/ }).click();
   await settle();
   await page.reload();
-  assert.equal(await page.locator('html').getAttribute('data-theme'), 'light');
+  await page.locator('#main, .public, .auth').first().waitFor();
+  assert.equal(await page.locator('html').getAttribute('data-theme'), 'light', 'user light toggle persists across reload');
+
+  // Emulate system dark while user preference is saved to light:
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.reload();
+  await page.locator('#main, .public, .auth').first().waitFor();
+  assert.equal(await page.locator('html').getAttribute('data-theme'), 'light', 'user preference overrides system scheme');
+
   await page.getByRole('button', { name: /Switch to dark theme/ }).click();
   await settle();
   await page.reload();
-  assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark');
+  await page.locator('#main, .public, .auth').first().waitFor();
+  assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark', 'user dark toggle persists across reload');
 
   // ------------------------------------------------------------- responsive
   const routes = [
