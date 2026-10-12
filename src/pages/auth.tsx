@@ -39,13 +39,29 @@ function AuthFrame({
   );
 }
 
+/**
+ * Validates and sanitizes the post-login redirect destination (closes #68).
+ * Only same-origin, path-only values are accepted:
+ * - A single leading '/' not followed by '/' or '\'
+ * - No protocol / scheme
+ * - Does not loop back to /login
+ * Anything else safely falls back to '/explore'.
+ */
+export function sanitizeNextRedirect(next: string | null | undefined): string {
+  if (!next) return '/explore';
+  if (/^\/(?![/\\])/.test(next) && !next.includes(':') && !next.startsWith('/login')) {
+    return next;
+  }
+  return '/explore';
+}
+
 export function ContributorLogin() {
   const { state, setState, notify } = useApp();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const [name, setName] = useState(state.session.contributor ?? '');
   const next = params.get('next');
-  const dest = next && next.startsWith('/') && !next.startsWith('/login') ? next : '/explore';
+  const dest = sanitizeNextRedirect(next);
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
