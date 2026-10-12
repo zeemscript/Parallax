@@ -22,7 +22,8 @@ export function Explore({ tab }: { tab: Tab }) {
   const { state } = useApp();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
-  const [q, setQ] = useState(params.get('q') ?? '');
+  const urlQuery = params.get('q') ?? '';
+  const [q, setQ] = useState(urlQuery);
   const [level, setLevel] = useState<Complexity | 'Any'>('Any');
   const [lang, setLang] = useState('Any');
   const [sort, setSort] = useState<(typeof SORTS)[number]>('Newest');
@@ -37,6 +38,18 @@ export function Explore({ tab }: { tab: Tab }) {
       setParams(next, { replace: true });
     }
   }, [params, setParams]);
+
+  useEffect(() => {
+    setQ(urlQuery);
+  }, [urlQuery]);
+
+  const updateQuery = (value: string) => {
+    setQ(value);
+    const next = new URLSearchParams(params);
+    if (value) next.set('q', value);
+    else next.delete('q');
+    setParams(next, { replace: true });
+  };
 
   const accepted = useMemo(() => state.repos.filter(r => r.status === 'Verified'), [state.repos]);
   const languages = useMemo(
@@ -100,10 +113,10 @@ export function Explore({ tab }: { tab: Tab }) {
               aria-label="Search"
               placeholder={tab === 'orgs' ? 'Search organizations…' : tab === 'repos' ? 'Search repositories…' : 'Search issues…'}
               value={q}
-              onChange={e => setQ(e.target.value)}
+              onChange={e => updateQuery(e.target.value)}
             />
             {q && (
-              <button className="btn ghost icon xs" aria-label="Clear search" onClick={() => setQ('')}>
+              <button className="btn ghost icon xs" aria-label="Clear search" onClick={() => updateQuery('')}>
                 <X size={12} />
               </button>
             )}
