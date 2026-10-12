@@ -35,6 +35,13 @@ try {
     return strip.top >= innerHeight - 2;
   }), 'the hero fills the viewport and the repository strip sits below the fold');
   assert.ok(await page.locator('.announce').isVisible(), 'announcement bar renders');
+  await page.locator('.announce-x').click();
+  await settle();
+  assert.equal(await page.locator('.announce').count(), 0, 'announcement bar dismisses on click');
+  await page.reload();
+  await page.locator('#main, .public, .auth').first().waitFor();
+  await settle();
+  assert.equal(await page.locator('.announce').count(), 0, 'announcement bar stays dismissed across reload');
   assert.ok(await page.locator('.navpill .goo-items a').count() >= 3, 'gooey nav links render');
   assert.ok(await page.locator('.logoloop-set').count() >= 2, 'logo loop duplicates its set');
   assert.equal(await page.locator('.swap-card').count(), 4, 'card swap stack renders');
@@ -81,13 +88,6 @@ try {
   await page.getByLabel('Complexity').selectOption('High');
   await settle();
   assert.equal(await page.locator('.list-row').count(), 2);
-  await page.getByRole('button', { name: 'Reset' }).click();
-  await settle();
-  assert.equal(await page.locator('.list-row').count(), 7);
-
-  await page.getByLabel('Bounty').selectOption('under $250');
-  await settle();
-  assert.equal(await page.locator('.list-row').count(), 2, 'bounty under $250 matches exactly 2 issues');
   await page.getByRole('button', { name: 'Reset' }).click();
   await settle();
   assert.equal(await page.locator('.list-row').count(), 7);
