@@ -10,7 +10,14 @@ import './styles/bits-interactive.css';
 import './styles/pages.css';
 
 try {
-  document.documentElement.dataset.theme = localStorage.getItem('parallax-theme') || 'dark';
+  const saved = localStorage.getItem('parallax-theme');
+  if (saved === 'light' || saved === 'dark') {
+    document.documentElement.dataset.theme = saved;
+  } else if (window.matchMedia?.('(prefers-color-scheme: light)').matches) {
+    document.documentElement.dataset.theme = 'light';
+  } else {
+    document.documentElement.dataset.theme = 'dark';
+  }
 } catch { /* default theme when storage is unavailable */ }
 
 createRoot(document.getElementById('root')!).render(
