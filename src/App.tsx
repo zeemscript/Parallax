@@ -18,6 +18,7 @@ import { IssuePage } from './pages/issue';
 import { ContributorLogin, MaintainerLogin } from './pages/auth';
 import { ContributorWork, ContributorReceipts, ContributorSettings } from './pages/contributor';
 import { MaintainerHome, MaintainerSubmit, RepoDashboard, RepoIssues, RepoSettings } from './pages/maintainer';
+import { NotFound } from './pages/NotFound';
 
 /* ------------------------------------------------------------------ theme */
 
@@ -381,7 +382,7 @@ function Routed() {
       <Route path="/maintainer/repo/:repoId/issues" element={<RepoShell><RepoIssues /></RepoShell>} />
       <Route path="/maintainer/repo/:repoId/settings" element={<RepoShell><RepoSettings /></RepoShell>} />
 
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<PublicShell><NotFound /></PublicShell>} />
     </Routes>
   );
 }

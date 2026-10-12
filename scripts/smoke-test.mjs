@@ -264,8 +264,15 @@ try {
   await page.locator('.rail.open').getByRole('link', { name: 'Connect a repo' }).click();
   await page.waitForURL('**/maintainer/submit');
 
+  // ----------------------------------------------------------------- 404 route
+  await go('/this-route-does-not-exist-404');
+  await settle();
+  assert.equal(page.url().includes('/this-route-does-not-exist-404'), true, 'unknown route does not silently redirect home');
+  assert.equal(await page.locator('.not-found-page').count(), 1, '404 not found page rendered');
+  assert.match(await page.getByRole('heading', { level: 1 }).innerText(), /Page not found/, '404 heading matches');
+
   assert.deepEqual(errors, []);
-  console.log('Passed: public explore (no dashboard chrome), search/tabs/filters, contributor apply and persistence, separate maintainer sign-in, connect-then-verify gate, per-repo dashboards scoped by owner and verification, proposal assignment, posting a funded issue, payout address validation, merge-and-release writing a receipt, theme persistence, 15 routes at 5 widths with no overflow, and the mobile drawer.');
+  console.log('Passed: public explore (no dashboard chrome), search/tabs/filters, contributor apply and persistence, separate maintainer sign-in, connect-then-verify gate, per-repo dashboards scoped by owner and verification, proposal assignment, posting a funded issue, payout address validation, merge-and-release writing a receipt, theme persistence, 404 not found route, 15 routes at 5 widths with no overflow, and the mobile drawer.');
 } catch (error) {
   console.log(await page.locator('body').innerText());
   mkdirSync('test-results', { recursive: true });
