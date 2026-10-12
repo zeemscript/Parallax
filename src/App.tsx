@@ -55,15 +55,32 @@ function ThemeToggle() {
 
 /* ------------------------------------------------------- public top-nav shell */
 
-// Routes remount the public shell on every navigation, so the dismissal lives
-// outside component state to survive the remount.
-let announceDismissed = false;
+const ANNOUNCE_STORAGE_KEY = 'parallax-announce-dismissed-v1';
+
+function getAnnounceDismissed(): boolean {
+  try {
+    return sessionStorage.getItem(ANNOUNCE_STORAGE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+function setAnnounceDismissed(): void {
+  try {
+    sessionStorage.setItem(ANNOUNCE_STORAGE_KEY, 'true');
+  } catch {
+    /* ignore storage errors */
+  }
+}
 
 function AnnounceBar() {
   const { state } = useApp();
-  const [open, setOpen] = useState(!announceDismissed);
+  const [open, setOpen] = useState(() => !getAnnounceDismissed());
   if (!open) return null;
-  const dismiss = () => { announceDismissed = true; setOpen(false); };
+  const dismiss = () => {
+    setAnnounceDismissed();
+    setOpen(false);
+  };
   return (
     <div className="announce">
       <Link className="announce-in" to="/explore">
