@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { ArrowUpRight, GitFork, Search, SlidersHorizontal, Star, X } from 'lucide-react';
-import { formatCount, formatMoney, relativeDate, repoName, type Complexity } from '../lib/model';
+import { formatCount, formatMoney, isOwnApplication, relativeDate, repoName, statusTone, type ApplicationStatus, type Complexity } from '../lib/model';
 import { useApp } from '../lib/store';
 import { PLATFORM } from '../lib/platform';
 import { Avatar, Chip, EASE, Empty, Item, LangDot, Page, Segmented, Stagger } from '../components/ui';
@@ -17,8 +17,7 @@ const TABS = [
 
 const SORTS = ['Newest', 'Bounty', 'Title'] as const;
 const LEVELS: (Complexity | 'Any')[] = ['Any', 'Trivial', 'Medium', 'High'];
-const BOUNTY_RANGES = ['Any', 'under $250', '$250–$750', 'over $750'] as const;
-type BountyRange = (typeof BOUNTY_RANGES)[number];
+const statusLabel = (status: ApplicationStatus) => status === 'Rejected' ? 'Not selected' : status;
 
 export function Explore({ tab }: { tab: Tab }) {
   const { state } = useApp();
@@ -27,10 +26,11 @@ export function Explore({ tab }: { tab: Tab }) {
   const [q, setQ] = useState(params.get('q') ?? '');
   const [level, setLevel] = useState<Complexity | 'Any'>('Any');
   const [lang, setLang] = useState('Any');
-  const [bountyRange, setBountyRange] = useState<BountyRange>('Any');
   const [sort, setSort] = useState<(typeof SORTS)[number]>('Newest');
+  const [onlyMine, setOnlyMine] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
+  const signedIn = !!state.session.contributor;
 
   useEffect(() => {
     if (params.get('focus')) {
@@ -42,6 +42,15 @@ export function Explore({ tab }: { tab: Tab }) {
   }, [params, setParams]);
 
   const accepted = useMemo(() => state.repos.filter(r => r.status === 'Verified'), [state.repos]);
+  const ownByIssue = useMemo(() => {
+    const map = new Map<string, ApplicationStatus>();
+    if (signedIn) {
+      for (const a of state.applications) {
+        if (isOwnApplication(a)) map.set(a.issueId, a.status);
+      }
+    }
+    return map;
+  }, [signedIn, state.applications]);
   const languages = useMemo(
     () => ['Any', ...new Set(accepted.flatMap(r => r.languages))],
     [accepted],
@@ -54,19 +63,14 @@ export function Explore({ tab }: { tab: Tab }) {
       if (!repo) return false;
       if (level !== 'Any' && issue.complexity !== level) return false;
       if (lang !== 'Any' && !repo.languages.includes(lang)) return false;
-      if (bountyRange !== 'Any') {
-        const b = issue.bounty ?? 0;
-        if (bountyRange === 'under $250' && !(b < 250)) return false;
-        if ((bountyRange === '$250–$750' || bountyRange === '$250-$750') && !(b >= 250 && b <= 750)) return false;
-        if (bountyRange === 'over $750' && !(b > 750)) return false;
-      }
+      if (onlyMine && !ownByIssue.has(issue.id)) return false;
       return `${issue.title} ${issue.id} ${repoName(repo)}`.toLowerCase().includes(needle);
     });
     return list.sort((a, b) =>
       sort === 'Bounty' ? b.bounty - a.bounty
         : sort === 'Title' ? a.title.localeCompare(b.title)
           : b.created.localeCompare(a.created));
-  }, [state.issues, accepted, level, lang, bountyRange, needle, sort]);
+  }, [state.issues, accepted, level, lang, onlyMine, ownByIssue, needle, sort]);
 
   const repos = useMemo(
     () => accepted.filter(r =>
@@ -82,7 +86,7 @@ export function Explore({ tab }: { tab: Tab }) {
       .map(o => ({ org: o, repos: accepted.filter(r => r.org === o) }));
   }, [accepted, needle]);
 
-  const activeFilters = (level !== 'Any' ? 1 : 0) + (lang !== 'Any' ? 1 : 0) + (bountyRange !== 'Any' ? 1 : 0);
+  const activeFilters = (level !== 'Any' ? 1 : 0) + (lang !== 'Any' ? 1 : 0) + (onlyMine ? 1 : 0);
   const count = tab === 'issues' ? issues.length : tab === 'repos' ? repos.length : orgs.length;
 
   return (
@@ -149,15 +153,6 @@ export function Explore({ tab }: { tab: Tab }) {
                     </select>
                   </label>
                 )}
-                {tab === 'issues' && (
-                  <label className="field inline">
-                    <span>Bounty</span>
-                    <select className="select" aria-label="Bounty" value={bountyRange}
-                      onChange={e => setBountyRange(e.target.value as BountyRange)}>
-                      {BOUNTY_RANGES.map(b => <option key={b}>{b}</option>)}
-                    </select>
-                  </label>
-                )}
                 <label className="field inline">
                   <span>Language</span>
                   <select className="select" aria-label="Language" value={lang} onChange={e => setLang(e.target.value)}>
@@ -173,7 +168,17 @@ export function Explore({ tab }: { tab: Tab }) {
                     </select>
                   </label>
                 )}
-                <button className="btn sm ghost" onClick={() => { setLevel('Any'); setLang('Any'); setSort('Newest'); setBountyRange('Any'); }}>
+                {tab === 'issues' && (
+                  <button
+                    type="button"
+                    className={onlyMine ? 'btn sm on' : 'btn sm'}
+                    aria-pressed={onlyMine}
+                    onClick={() => setOnlyMine(m => !m)}
+                  >
+                    Only mine
+                  </button>
+                )}
+                <button className="btn sm ghost" onClick={() => { setLevel('Any'); setLang('Any'); setSort('Newest'); setOnlyMine(false); }}>
                   Reset
                 </button>
               </div>
@@ -187,6 +192,8 @@ export function Explore({ tab }: { tab: Tab }) {
           <Stagger className="list">
             {issues.map(issue => {
               const repo = accepted.find(r => r.id === issue.repoId)!;
+              const ownStatus = ownByIssue.get(issue.id);
+              const ownLabel = ownStatus ? statusLabel(ownStatus) : null;
               return (
                 <Item key={issue.id}>
                   <Link className="list-row" to={`/issue/${issue.id}`}>
@@ -195,6 +202,12 @@ export function Explore({ tab }: { tab: Tab }) {
                       <span className="row-title">{issue.title}</span>
                       <span className="row-sub">{repoName(repo)}</span>
                     </span>
+                    {ownStatus && ownLabel && (
+                      <Chip tone={statusTone(ownStatus)} className="proposal-chip">
+                        <span className="dot" aria-hidden="true" />
+                        <span className="proposal-chip-label">{ownLabel}</span>
+                      </Chip>
+                    )}
                     <Chip className="hide-sm">{issue.complexity}</Chip>
                     <Chip className="solid num">${formatMoney(issue.bounty)}</Chip>
                     <ArrowUpRight size={14} className="dim hide-sm" />
