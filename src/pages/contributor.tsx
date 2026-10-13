@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowRight, GitPullRequest } from 'lucide-react';
 import {
   dateLabel, formatMoney, initialState, isOwnApplication, isStellarAddress, repoName, shortAddress, statusTone,
 } from '../lib/model';
 import { PLATFORM } from '../lib/platform';
 import { useApp } from '../lib/store';
-import { Chip, Empty, Item, ModalHost, Page, PageHead, Stagger } from '../components/ui';
+import { Avatar, Chip, Crumbs, Empty, Item, ModalHost, Page, PageHead, Stagger } from '../components/ui';
 
 export function ContributorWork() {
   const { state, setState, notify } = useApp();
@@ -95,7 +95,15 @@ export function ContributorReceipts() {
 
   return (
     <Page>
-      <PageHead title="Receipts" sub={`One for every bounty released to you. Portable proof of the work you shipped.`} />
+      <PageHead
+        title="Receipts"
+        sub={`One for every bounty released to you. Portable proof of the work you shipped.`}
+        action={me ? (
+          <Link className="btn sm" to={`/u/${encodeURIComponent(me)}`}>
+            View public profile<ArrowRight size={13} />
+          </Link>
+        ) : undefined}
+      />
       <div className="grid c3">
         <div className="card stat">
           <p className="label">Earned</p>
@@ -143,6 +151,86 @@ export function ContributorReceipts() {
           Preview receipts are stored in this browser. Once the escrow contract is live they are written to {PLATFORM.chain} {PLATFORM.network}.
         </p>
       </section>
+    </Page>
+  );
+}
+
+export function ContributorProfile() {
+  const { handle = '' } = useParams();
+  const { state } = useApp();
+  const me = state.session.contributor;
+  const receipts = state.receipts.filter(r => r.contributor === handle);
+  const proposals = state.applications.filter(a => (a.applicant ?? me) === handle);
+  const known = receipts.length > 0 || proposals.length > 0 || me === handle;
+  const total = receipts.reduce((sum, r) => sum + r.amount, 0);
+
+  return (
+    <Page className="detail">
+      <div className="detail-inner">
+        <Crumbs items={[{ label: 'Explore', to: '/explore' }, { label: handle || 'Contributor' }]} />
+        {known ? (
+          <>
+            <header className="page-head">
+              <div className="row" style={{ gap: 12, minWidth: 0 }}>
+                <Avatar name={handle} size="lg" />
+                <div style={{ minWidth: 0 }}>
+                  <h1>{handle}</h1>
+                  <p>Public record of shipped bounties settled on {PLATFORM.chain}.</p>
+                </div>
+              </div>
+            </header>
+
+            <div className="grid c2">
+              <div className="card stat">
+                <p className="label">Total earned</p>
+                <strong className="num">${formatMoney(total)}</strong>
+                <small>{PLATFORM.asset}, all time</small>
+              </div>
+              <div className="card stat">
+                <p className="label">Receipts</p>
+                <strong className="num">{receipts.length}</strong>
+                <small>Merged and paid</small>
+              </div>
+            </div>
+
+            <section className="section">
+              <div className="row section-head"><h2>Receipts</h2></div>
+              {receipts.length ? (
+                <Stagger className="list">
+                  {receipts.map(r => {
+                    const issue = state.issues.find(i => i.id === r.issueId);
+                    const repo = state.repos.find(x => x.id === r.repoId);
+                    return (
+                      <Item key={r.id}>
+                        <div className="list-row">
+                          <span className="mono dim issue-num">#{r.issueId}</span>
+                          <span className="col" style={{ gap: 2, minWidth: 0, flex: 1 }}>
+                            {issue
+                              ? <Link className="row-title" to={`/issue/${issue.id}`}>{issue.title}</Link>
+                              : <span className="row-title">Issue #{r.issueId}</span>}
+                            <span className="row-sub">
+                              {repo ? repoName(repo) : ''} · {dateLabel(r.paidAt)}
+                            </span>
+                          </span>
+                          <Chip className="solid num">+${formatMoney(r.amount)}</Chip>
+                        </div>
+                      </Item>
+                    );
+                  })}
+                </Stagger>
+              ) : (
+                <Empty title="No receipts yet">
+                  This contributor has not had a bounty released yet.
+                </Empty>
+              )}
+            </section>
+          </>
+        ) : (
+          <Empty title="Contributor not found">
+            No public receipts or proposals exist for {handle} yet.
+          </Empty>
+        )}
+      </div>
     </Page>
   );
 }
