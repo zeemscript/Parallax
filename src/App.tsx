@@ -8,9 +8,9 @@ import {
   Receipt, Settings, Sun, Wrench, X,
 } from 'lucide-react';
 import { Provider, useApp } from './lib/store';
-import { canOpenRepoDashboard, escrowedTotal, formatMoney, repoName, reposOwnedBy } from './lib/model';
+import { canOpenRepoDashboard, escrowedTotal, formatMoney, repoName, reposOwnedBy, shortAddress } from './lib/model';
 import { PLATFORM } from './lib/platform';
-import { Avatar, Brand, EASE } from './components/ui';
+import { Avatar, Brand, Chip, EASE } from './components/ui';
 import { GooeyNav } from './components/bits';
 import { Landing } from './pages/landing';
 import { Explore } from './pages/explore';
@@ -286,6 +286,110 @@ function ContributorShell({ children }: { children: ReactNode }) {
 
 /* ---------------------------------------------------------- maintainer area */
 
+function MaintainerWalletControls() {
+  const { state, setState, notify } = useApp();
+  const [notInstalled, setNotInstalled] = useState(false);
+  const [walletErr, setWalletErr] = useState('');
+  const wallet = state.maintainerWallet ?? null;
+
+  const connectWallet = async () => {
+    setWalletErr('');
+    type FreighterBridge = {
+      requestAccess?: () => Promise<{ address?: string; error?: string } | string>;
+      getAddress?: () => Promise<{ address?: string } | string>;
+      getPublicKey?: () => Promise<string>;
+      getNetwork?: () => Promise<{ network?: string } | string>;
+      getNetworkDetails?: () => Promise<{ network?: string }>;
+    };
+    const win = window as unknown as { freighterApi?: FreighterBridge; freighter?: FreighterBridge };
+    const bridge = win.freighterApi ?? win.freighter;
+    if (!bridge || (!bridge.requestAccess && !bridge.getAddress && !bridge.getPublicKey)) {
+      setNotInstalled(true);
+      return;
+    }
+    try {
+      const rawAddr = bridge.requestAccess
+        ? await bridge.requestAccess()
+        : bridge.getAddress
+          ? await bridge.getAddress()
+          : await bridge.getPublicKey!();
+      const address = (typeof rawAddr === 'string' ? rawAddr : rawAddr?.address ?? '').trim().toUpperCase();
+      if (!address) {
+        setWalletErr('Freighter did not return an account address.');
+        return;
+      }
+      let network = String(PLATFORM.network);
+      if (bridge.getNetworkDetails) {
+        const details = await bridge.getNetworkDetails();
+        if (details?.network) network = details.network.toLowerCase();
+      } else if (bridge.getNetwork) {
+        const net = await bridge.getNetwork();
+        const netStr = typeof net === 'string' ? net : net?.network ?? '';
+        if (netStr) network = netStr.toLowerCase();
+      }
+      setNotInstalled(false);
+      setState(s => ({ ...s, maintainerWallet: { address, network } }));
+      notify('Freighter wallet connected.');
+    } catch (err) {
+      const detail = err instanceof Error && err.message ? err.message : 'connection cancelled';
+      setWalletErr(`Could not connect Freighter: ${detail}`);
+    }
+  };
+
+  const disconnectWallet = () => {
+    setWalletErr('');
+    setState(s => ({ ...s, maintainerWallet: null }));
+    notify('Wallet disconnected.');
+  };
+
+  const expectedNet = String(PLATFORM.network).toLowerCase();
+  const actualNet = wallet?.network.toLowerCase() ?? '';
+  const networkMatches = !!wallet && (
+    actualNet === expectedNet || (expectedNet === 'mainnet' && actualNet === 'public')
+  );
+
+  return (
+    <div className="col" style={{ gap: 8 }} data-maintainer-wallet={wallet ? (networkMatches ? 'ready' : 'wrong-network') : 'disconnected'}>
+      {wallet ? (
+        <div className="col" style={{ gap: 6 }}>
+          <div className="row" style={{ gap: 6, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+            <span className="mono" data-wallet-address={wallet.address}>{shortAddress(wallet.address)}</span>
+            <Chip tone={networkMatches ? 'success' : 'warn'}>{wallet.network}</Chip>
+          </div>
+          {!networkMatches && (
+            <p className="err" role="alert" data-wallet-network-warning="true" style={{ fontSize: 12, margin: 0 }}>
+              Freighter is on {wallet.network} — switch to {PLATFORM.network} before funding or releasing bounties.
+            </p>
+          )}
+          <button className="btn ghost sm block" type="button" onClick={disconnectWallet}>
+            Disconnect
+          </button>
+        </div>
+      ) : (
+        <div className="col" style={{ gap: 6 }}>
+          <button className="btn sm block" type="button" onClick={() => void connectWallet()}>
+            Connect wallet
+          </button>
+          {notInstalled && (
+            <a
+              className="btn ghost sm block"
+              href="https://www.freighter.app/"
+              target="_blank"
+              rel="noreferrer"
+              data-freighter-install="true"
+            >
+              Install Freighter
+            </a>
+          )}
+          {walletErr && (
+            <p className="err" role="alert" style={{ fontSize: 12, margin: 0 }}>{walletErr}</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MaintainerShell({ children }: { children: ReactNode }) {
   const { state } = useApp();
   const me = state.session.maintainer;
@@ -302,7 +406,12 @@ function MaintainerShell({ children }: { children: ReactNode }) {
           { to: '/maintainer/submit', label: 'Connect a repo', icon: LayoutGrid },
         ],
       }]}
-      footer={<Link className="btn ghost sm block" to="/">Leave maintainer area</Link>}
+      footer={
+        <div className="col" style={{ gap: 8 }}>
+          <MaintainerWalletControls />
+          <Link className="btn ghost sm block" to="/">Leave maintainer area</Link>
+        </div>
+      }
     >
       {children}
     </WorkspaceShell>
@@ -332,7 +441,12 @@ function RepoShell({ children }: { children: ReactNode }) {
           { to: `/maintainer/repo/${repo!.id}/settings`, label: 'Settings', icon: Settings },
         ],
       }]}
-      footer={<Link className="btn ghost sm block" to="/maintainer"><Wrench size={14} />All repositories</Link>}
+      footer={
+        <div className="col" style={{ gap: 8 }}>
+          <MaintainerWalletControls />
+          <Link className="btn ghost sm block" to="/maintainer"><Wrench size={14} />All repositories</Link>
+        </div>
+      }
     >
       {children}
     </WorkspaceShell>
