@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, GitPullRequest } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, GitPullRequest } from 'lucide-react';
 import {
   dateLabel, formatMoney, initialState, isOwnApplication, isStellarAddress, repoName, shortAddress, statusTone,
 } from '../lib/model';
 import { PLATFORM } from '../lib/platform';
+import { decodeReceiptEvents, type OnChainReceiptEvent, type RawSorobanEvent } from '../lib/receipt-events';
 import { useApp } from '../lib/store';
 import { Chip, Empty, Item, ModalHost, Page, PageHead, Stagger } from '../components/ui';
 
@@ -87,11 +88,80 @@ export function ContributorWork() {
   );
 }
 
+const ESCROW_CONTRACT_ID = 'CBESCROW7TESTNET4PARALLAX2SOROBAN5USDC6BOUNTY7CONTRACT8ID';
+
 export function ContributorReceipts() {
   const { state } = useApp();
   const me = state.session.contributor;
   const mine = state.receipts.filter(r => r.contributor === me);
-  const total = mine.reduce((sum, r) => sum + r.amount, 0);
+  const [onChainState, setOnChainState] = useState<
+    | { kind: 'idle' }
+    | { kind: 'loading' }
+    | { kind: 'loaded'; items: OnChainReceiptEvent[] }
+    | { kind: 'error'; message: string }
+  >({ kind: 'idle' });
+
+  useEffect(() => {
+    const addr = state.payoutAddress;
+    if (!addr) {
+      setOnChainState({ kind: 'idle' });
+      return;
+    }
+    let cancelled = false;
+    setOnChainState({ kind: 'loading' });
+    const rpcUrl =
+      (PLATFORM.network as string) === 'mainnet' || (PLATFORM.network as string) === 'public'
+        ? 'https://soroban-rpc.mainnet.stellar.gateway.fm'
+        : 'https://soroban-testnet.stellar.org';
+
+    fetch(rpcUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'getEvents',
+        params: {
+          filters: [
+            {
+              type: 'contract',
+              contractIds: [ESCROW_CONTRACT_ID],
+              topics: [['receipt', '*', addr]],
+            },
+          ],
+        },
+      }),
+    })
+      .then(async res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = (await res.json()) as {
+          result?: { events?: RawSorobanEvent[] };
+          error?: { message?: string };
+        };
+        if (json.error?.message) throw new Error(json.error.message);
+        const decoded = decodeReceiptEvents(json.result?.events ?? [], addr);
+        if (!cancelled) {
+          setOnChainState({ kind: 'loaded', items: decoded });
+        }
+      })
+      .catch(err => {
+        if (!cancelled) {
+          const detail = err instanceof Error && err.message ? err.message : 'network error';
+          setOnChainState({ kind: 'error', message: `Could not load on-chain receipts from Soroban RPC (${detail}).` });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [state.payoutAddress]);
+
+  const onChainItems = onChainState.kind === 'loaded' ? onChainState.items : [];
+  const total = mine.reduce((sum, r) => sum + r.amount, 0) + onChainItems.reduce((sum, r) => sum + r.amount, 0);
+  const explorerSegment =
+    (PLATFORM.network as string) === 'mainnet' || (PLATFORM.network as string) === 'public'
+      ? 'public'
+      : 'testnet';
 
   return (
     <Page>
@@ -104,7 +174,7 @@ export function ContributorReceipts() {
         </div>
         <div className="card stat">
           <p className="label">Receipts</p>
-          <strong className="num">{mine.length}</strong>
+          <strong className="num">{mine.length + onChainItems.length}</strong>
           <small>Merged and paid</small>
         </div>
         <div className="card stat">
@@ -113,8 +183,68 @@ export function ContributorReceipts() {
           <small>{state.payoutAddress ? `${PLATFORM.chain} account` : <Link to="/me/settings">Add one in settings</Link>}</small>
         </div>
       </div>
-      <section className="section">
-        <div className="row section-head"><h2>Ledger</h2></div>
+
+      {state.payoutAddress && (
+        <section className="section" data-onchain-receipts-section={onChainState.kind}>
+          <div className="row section-head">
+            <h2>On-chain receipts</h2>
+            <Chip>{PLATFORM.chain} {PLATFORM.network}</Chip>
+          </div>
+          {onChainState.kind === 'loading' && (
+            <p className="hint" role="status">Fetching on-chain receipt events from Soroban RPC…</p>
+          )}
+          {onChainState.kind === 'error' && (
+            <p className="err" role="alert" data-onchain-receipts-error="true">{onChainState.message}</p>
+          )}
+          {onChainState.kind === 'loaded' && (
+            onChainItems.length ? (
+              <Stagger className="list">
+                {onChainItems.map(r => (
+                  <Item key={r.id}>
+                    <div className="list-row" data-onchain-receipt-row={r.id}>
+                      <span className="mono dim issue-num">#{r.issue}</span>
+                      <span className="col" style={{ gap: 2, minWidth: 0, flex: 1 }}>
+                        <span className="row-title">{r.repo} #{r.issue}</span>
+                        <span className="row-sub">
+                          {dateLabel(r.paidAt)}
+                          {r.pullRequest && (
+                            <>
+                              {' · '}
+                              <a href={r.pullRequest} target="_blank" rel="noreferrer" data-onchain-pr-link="true">
+                                {r.pullRequest.replace('https://github.com/', '')}
+                              </a>
+                            </>
+                          )}
+                          {' · '}
+                          <a
+                            href={`https://stellar.expert/explorer/${explorerSegment}/tx/${r.txHash}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            data-onchain-tx-link="true"
+                          >
+                            View transaction<ArrowUpRight size={11} />
+                          </a>
+                        </span>
+                      </span>
+                      <Chip className="solid num">+${formatMoney(r.amount)}</Chip>
+                    </div>
+                  </Item>
+                ))}
+              </Stagger>
+            ) : (
+              <p className="hint" data-onchain-receipts-empty="true">
+                No on-chain receipt events found for {shortAddress(state.payoutAddress)} yet.
+              </p>
+            )
+          )}
+        </section>
+      )}
+
+      <section className="section" data-preview-receipts-section="true">
+        <div className="row section-head">
+          <h2>Ledger</h2>
+          <span data-preview-badge="true"><Chip>preview</Chip></span>
+        </div>
         {mine.length ? (
           <Stagger className="list">
             {mine.map(r => {
@@ -132,6 +262,7 @@ export function ContributorReceipts() {
                         {repo ? repoName(repo) : ''} · {dateLabel(r.paidAt)} · <span className="mono">{r.id}</span>
                       </span>
                     </span>
+                    <span data-preview-receipt-label="true"><Chip>preview</Chip></span>
                     <Chip className="solid num">+${formatMoney(r.amount)}</Chip>
                   </div>
                 </Item>
