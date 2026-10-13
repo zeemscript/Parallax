@@ -175,6 +175,8 @@ try {
   const states = await page.locator('.issue-block-body .proposal .chip').allInnerTexts();
   assert.ok(states.includes('Assigned') && states.includes('Rejected'),
     'assigning one candidate declines the rest');
+  assert.ok(await page.locator('.issue-block-body').getByRole('button', { name: 'Edit' }).isDisabled(),
+    'editing is disabled after an issue is assigned');
 
   // ------------------------------------------------- post and fund an issue
   await page.getByRole('button', { name: 'Post an issue' }).click();
@@ -186,6 +188,18 @@ try {
   await page.getByRole('button', { name: 'Post and fund issue' }).click();
   await settle();
   assert.ok(await page.getByRole('button', { name: /Add shell completions/ }).isVisible(), 'posted issue is listed');
+
+  // edit the unassigned issue's title
+  await page.getByRole('button', { name: /Add shell completions/ }).click();
+  await settle();
+  await page.locator('.issue-block-body').getByRole('button', { name: 'Edit' }).click();
+  assert.ok(await page.getByLabel('Bounty').isDisabled(), 'bounty amount is not editable');
+  await page.getByLabel('Issue title').fill('Add shell completions for zsh, fish and bash');
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await settle();
+  assert.ok(await page.getByRole('button', { name: /Add shell completions for zsh, fish and bash/ }).isVisible(),
+    'edited issue title is saved');
+
   await go('/explore');
   await page.getByLabel('Search', { exact: true }).fill('shell completions');
   await settle();
