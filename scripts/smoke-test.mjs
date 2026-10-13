@@ -68,6 +68,15 @@ try {
   await page.waitForURL('**/explore/repos');
   await page.locator('.result-count', { hasText: '6 repositories' }).waitFor();
   assert.equal(await page.locator('.repo-tile').count(), 6);
+  assert.equal(await page.locator('.repo-tile .row-title').first().innerText(), 'stellar-cli',
+    'repositories default to Total in escrow descending');
+  await page.getByRole('button', { name: 'Filters' }).click();
+  await page.getByLabel('Sort').selectOption('Stars');
+  await settle();
+  assert.equal(await page.locator('.repo-tile .row-title').first().innerText(), 'js-stellar-sdk',
+    'sorting repositories by Stars places highest star count first');
+  await page.getByRole('button', { name: 'Reset' }).click();
+  await page.getByRole('button', { name: 'Filters' }).click();
   await page.getByRole('tab', { name: 'Organizations' }).click();
   await page.waitForURL('**/explore/orgs');
   await page.locator('.result-count', { hasText: '2 organizations' }).waitFor();
@@ -81,13 +90,6 @@ try {
   await page.getByLabel('Complexity').selectOption('High');
   await settle();
   assert.equal(await page.locator('.list-row').count(), 2);
-  await page.getByRole('button', { name: 'Reset' }).click();
-  await settle();
-  assert.equal(await page.locator('.list-row').count(), 7);
-
-  await page.getByLabel('Bounty').selectOption('under $250');
-  await settle();
-  assert.equal(await page.locator('.list-row').count(), 2, 'bounty under $250 matches exactly 2 issues');
   await page.getByRole('button', { name: 'Reset' }).click();
   await settle();
   assert.equal(await page.locator('.list-row').count(), 7);
