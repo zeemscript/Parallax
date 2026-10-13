@@ -11,6 +11,7 @@ import { Chip, Empty, Item, ModalHost, Page, PageHead, Stagger } from '../compon
 export function ContributorWork() {
   const { state, setState, notify } = useApp();
   const [prFor, setPrFor] = useState<string | null>(null);
+  const [withdrawFor, setWithdrawFor] = useState<string | null>(null);
   const [pr, setPr] = useState('');
   const [err, setErr] = useState('');
 
@@ -30,6 +31,16 @@ export function ContributorWork() {
     setPrFor(null);
     setPr('');
     notify('Pull request submitted for review.');
+  };
+
+  const withdraw = () => {
+    if (!withdrawFor) return;
+    setState(s => ({
+      ...s,
+      applications: s.applications.filter(a => !(a.issueId === withdrawFor && isOwnApplication(a) && a.status === 'Applied')),
+    }));
+    setWithdrawFor(null);
+    notify('Proposal withdrawn.');
   };
 
   return (
@@ -56,6 +67,11 @@ export function ContributorWork() {
                   <Chip tone={statusTone(app.status)}>
                     {app.status}
                   </Chip>
+                  {app.status === 'Applied' && (
+                    <button className="btn xs ghost" onClick={() => setWithdrawFor(app.issueId)}>
+                      Withdraw
+                    </button>
+                  )}
                   {app.status === 'Assigned' && (
                     <button className="btn xs primary" onClick={() => { setErr(''); setPrFor(app.issueId); }}>
                       <GitPullRequest size={12} />Submit PR
@@ -82,6 +98,11 @@ export function ContributorWork() {
         </label>
         {err && <p className="err" role="alert">{err}</p>}
         <button className="btn primary block" onClick={submitPr}>Submit for review</button>
+      </ModalHost>
+
+      <ModalHost open={!!withdrawFor} title="Withdraw your proposal?" onClose={() => setWithdrawFor(null)}>
+        <p>Your proposal will be removed from the maintainer&apos;s queue. You can apply again later while the issue remains open.</p>
+        <button className="btn danger block" onClick={withdraw}>Withdraw proposal</button>
       </ModalHost>
     </Page>
   );
