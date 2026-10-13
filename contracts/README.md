@@ -55,14 +55,27 @@ stellar contract build     # writes target/wasm32v1-none/release/parallax_escrow
 
 ## Deploy to testnet
 
+Run the one-command deployment script from the repository root. It builds the contract wasm,
+ensures a funded `parallax-deployer` identity exists on testnet, resolves the USDC Stellar Asset
+Contract id, deploys the escrow contract, and prints the new contract id:
+
 ```bash
-stellar keys generate maintainer --network testnet --fund
+./scripts/deploy-testnet.sh
+
+# Override the classic asset if deploying against a custom testnet token:
+USDC_ASSET="USDC:GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5" ./scripts/deploy-testnet.sh
+```
+
+Or run the underlying Stellar CLI steps manually:
+
+```bash
+stellar keys generate parallax-deployer --network testnet --fund
 
 # USDC on testnet is a classic asset; this prints its Stellar Asset Contract id.
 USDC=$(stellar contract id asset --network testnet \
   --asset USDC:GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5)
 
-stellar contract deploy --network testnet --source maintainer \
+stellar contract deploy --network testnet --source parallax-deployer \
   --wasm target/wasm32v1-none/release/parallax_escrow.wasm \
   -- --token "$USDC"
 ```
