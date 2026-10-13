@@ -154,15 +154,36 @@ export function Segmented<T extends string>({
   onChange: (v: T) => void;
   idPrefix: string;
 }) {
+  const handleKeyDown = (e: React.KeyboardEvent, index: number) => {
+    let nextIndex = index;
+    if (e.key === 'ArrowRight') {
+      nextIndex = (index + 1) % options.length;
+    } else if (e.key === 'ArrowLeft') {
+      nextIndex = (index - 1 + options.length) % options.length;
+    } else if (e.key === 'Home') {
+      nextIndex = 0;
+    } else if (e.key === 'End') {
+      nextIndex = options.length - 1;
+    } else {
+      return;
+    }
+    e.preventDefault();
+    onChange(options[nextIndex].value);
+    const tabs = (e.currentTarget.parentElement?.querySelectorAll('[role="tab"]') ?? []) as HTMLElement[];
+    tabs[nextIndex]?.focus();
+  };
+
   return (
     <div className="seg" role="tablist">
-      {options.map(opt => (
+      {options.map((opt, i) => (
         <button
           key={opt.value}
           role="tab"
+          tabIndex={value === opt.value ? 0 : -1}
           aria-selected={value === opt.value}
           data-on={value === opt.value}
           onClick={() => onChange(opt.value)}
+          onKeyDown={e => handleKeyDown(e, i)}
         >
           {value === opt.value && (
             <motion.span
