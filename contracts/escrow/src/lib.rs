@@ -8,7 +8,8 @@
 #![no_std]
 
 use soroban_sdk::{
-    contract, contracterror, contractevent, contractimpl, contracttype, token, Address, Env, String,
+    contract, contracterror, contractevent, contractimpl, contracttype, token, Address, Env,
+    String, Vec,
 };
 
 #[contracttype]
@@ -44,6 +45,7 @@ pub enum Error {
     NotOpen = 3,
     NotAssigned = 4,
     AlreadyFunded = 5,
+    InvalidSplit = 6,
 }
 
 #[contracttype]
@@ -209,6 +211,52 @@ impl Escrow {
             amount: bounty.amount,
         }
         .publish(&env);
+        Ok(())
+    }
+
+    /// Split an open bounty payout across several contributors.
+    pub fn release_split(
+        env: Env,
+        id: u64,
+        pull_request: String,
+        shares: Vec<(Address, i128)>,
+    ) -> Result<(), Error> {
+        let mut bounty = Self::open_bounty(&env, id)?;
+        bounty.maintainer.require_auth();
+        if shares.is_empty() {
+            return Err(Error::InvalidSplit);
+        }
+
+        let mut total: i128 = 0;
+        for (_, share) in shares.iter() {
+            if share <= 0 {
+                return Err(Error::InvalidSplit);
+            }
+            total = total.checked_add(share).ok_or(Error::InvalidSplit)?;
+        }
+        if total != bounty.amount {
+            return Err(Error::InvalidSplit);
+        }
+
+        bounty.status = Status::Paid;
+        Self::save(&env, id, &bounty);
+        env.storage()
+            .persistent()
+            .remove(&Key::Issue(bounty.repo.clone(), bounty.issue));
+
+        let client = token::Client::new(&env, &Self::token(env.clone()));
+        for (recipient, share) in shares.iter() {
+            client.transfer(&env.current_contract_address(), &recipient, &share);
+            Receipt {
+                id,
+                contributor: recipient,
+                repo: bounty.repo.clone(),
+                issue: bounty.issue,
+                pull_request: pull_request.clone(),
+                amount: share,
+            }
+            .publish(&env);
+        }
         Ok(())
     }
 
