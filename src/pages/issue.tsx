@@ -89,7 +89,13 @@ export function IssuePage() {
                     <div className="proposal" key={`${p.issueId}-${p.applicant ?? 'me'}`}>
                       <div className="row" style={{ gap: 8 }}>
                         <Avatar name={applicantName(p, me ?? '?')} />
-                        <strong className="row-title">{applicantName(p, me ?? 'You')}</strong>
+                        {(p.applicant ?? me) ? (
+                          <Link className="row-title" to={`/u/${encodeURIComponent((p.applicant ?? me)!)}`}>
+                            {applicantName(p, me ?? 'You')}
+                          </Link>
+                        ) : (
+                          <strong className="row-title">{applicantName(p, me ?? 'You')}</strong>
+                        )}
                         {isOwnApplication(p) && <Chip>You</Chip>}
                         <span className="spacer" />
                         <Chip tone={statusTone(p.status)}>
