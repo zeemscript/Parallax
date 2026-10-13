@@ -52,13 +52,22 @@ export function ContributorWork() {
                   <span className="col" style={{ gap: 2, minWidth: 0, flex: 1 }}>
                     <Link className="row-title" to={`/issue/${issue.id}`}>{issue.title}</Link>
                     <span className="row-sub">{repo ? repoName(repo) : ''}</span>
+                    {app.reviewNotes && app.reviewNotes.length > 0 && (
+                      <span className="row-sub" style={{ color: 'var(--warn)' }}>
+                        Changes requested: {app.reviewNotes[app.reviewNotes.length - 1]}
+                      </span>
+                    )}
                   </span>
                   <Chip tone={statusTone(app.status)}>
                     {app.status}
                   </Chip>
                   {app.status === 'Assigned' && (
-                    <button className="btn xs primary" onClick={() => { setErr(''); setPrFor(app.issueId); }}>
-                      <GitPullRequest size={12} />Submit PR
+                    <button className="btn xs primary" onClick={() => {
+                      setErr('');
+                      setPr(app.pr ?? '');
+                      setPrFor(app.issueId);
+                    }}>
+                      <GitPullRequest size={12} />{app.pr ? 'Resubmit PR' : 'Submit PR'}
                     </button>
                   )}
                 </div>
