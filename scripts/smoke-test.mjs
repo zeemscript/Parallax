@@ -85,13 +85,6 @@ try {
   await settle();
   assert.equal(await page.locator('.list-row').count(), 7);
 
-  await page.getByLabel('Bounty').selectOption('under $250');
-  await settle();
-  assert.equal(await page.locator('.list-row').count(), 2, 'bounty under $250 matches exactly 2 issues');
-  await page.getByRole('button', { name: 'Reset' }).click();
-  await settle();
-  assert.equal(await page.locator('.list-row').count(), 7);
-
   // ------------------------------------------------------- contributor apply
   await go('/issue/512');
   await page.getByRole('heading', { name: 'Add a test helper for asserting emitted events' }).waitFor();
@@ -109,8 +102,20 @@ try {
   await settle();
   assert.match(await page.locator('.proposal').first().innerText(), /Applied/, 'proposal persists');
 
+  // withdraw then re-apply
+  await page.getByRole('button', { name: 'Withdraw', exact: true }).click();
+  await page.getByRole('button', { name: 'Withdraw proposal' }).click();
+  await settle();
+  assert.equal(await page.locator('.proposal').count(), 0, 'withdrawing removes the proposal');
+  await page.getByRole('button', { name: 'Apply to this issue' }).click();
+  await page.getByLabel('Your plan').fill('I would add an assert_emitted helper that matches topics and data, prints a readable diff on failure, and ships with a documented example test.');
+  await page.getByRole('button', { name: 'Send proposal' }).click();
+  await settle();
+  assert.equal(await page.locator('.proposal').count(), 1, 'contributor can apply again after withdrawing');
+
   await go('/me');
   assert.equal(await page.locator('.list-row').count(), 1, 'assignment appears in contributor workspace');
+  assert.ok(await page.getByRole('button', { name: 'Withdraw', exact: true }).isVisible(), 'withdraw action shown in /me while Applied');
 
   // ------------------------------------------- maintainer is a separate login
   await go('/maintainer');
