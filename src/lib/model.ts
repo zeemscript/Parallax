@@ -41,6 +41,8 @@ export interface Application {
   pr?: string;
   /** Sample contributor. Absent means the signed-in contributor. */
   applicant?: string;
+  /** History of review notes when a maintainer requests changes on a submitted PR. */
+  reviewNotes?: string[];
 }
 
 /** Record of a released bounty. On-chain once the escrow contract lands; local in the preview. */
