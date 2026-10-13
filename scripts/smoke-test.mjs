@@ -216,6 +216,27 @@ try {
   await go('/maintainer/repo/soroban-sdk/issues');
   await page.getByRole('button', { name: /Add a test helper for asserting emitted events/ }).click();
   await settle();
+  await page.getByRole('button', { name: 'Request changes' }).click();
+  await page.getByLabel('Review note').fill('Please add an example covering nested contract events.');
+  await page.getByRole('button', { name: 'Send review note' }).click();
+  await settle();
+  assert.match(await page.locator('.issue-block-body .proposal').first().innerText(), /Assigned/,
+    'requesting changes returns the proposal to Assigned');
+  assert.match(await page.locator('.issue-block-body .proposal').first().innerText(), /Please add an example covering nested contract events\./,
+    'review note appears in the proposal history');
+
+  await go('/me');
+  assert.match(await page.locator('.list-row').first().innerText(), /Please add an example covering nested contract events\./,
+    'contributor sees the requested changes note in /me');
+  await page.getByRole('button', { name: 'Resubmit PR' }).click();
+  assert.equal(await page.getByLabel('Pull request URL').inputValue(), 'https://github.com/stellar/rs-soroban-sdk/pull/1234',
+    'existing PR link is kept when resubmitting');
+  await page.getByRole('button', { name: 'Submit for review' }).click();
+  await settle();
+
+  await go('/maintainer/repo/soroban-sdk/issues');
+  await page.getByRole('button', { name: /Add a test helper for asserting emitted events/ }).click();
+  await settle();
   await page.getByRole('button', { name: /Merge & release/ }).click();
   await settle();
 
