@@ -64,6 +64,19 @@ export function IssuePage() {
               <div className="row dim" style={{ gap: 7, fontSize: 'var(--t3)' }}>
                 <Avatar name={repo.org} org={repo.org} square />
                 <span>{repoName(repo)}</span>
+                {issue.githubNumber && (
+                  <>
+                    <span>·</span>
+                    <a
+                      className="mono"
+                      href={`https://github.com/${repo.org}/${repo.name}/issues/${issue.githubNumber}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      GitHub #{issue.githubNumber} <ArrowUpRight size={12} />
+                    </a>
+                  </>
+                )}
               </div>
             </header>
 
