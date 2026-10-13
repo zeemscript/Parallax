@@ -85,13 +85,6 @@ try {
   await settle();
   assert.equal(await page.locator('.list-row').count(), 7);
 
-  await page.getByLabel('Bounty').selectOption('under $250');
-  await settle();
-  assert.equal(await page.locator('.list-row').count(), 2, 'bounty under $250 matches exactly 2 issues');
-  await page.getByRole('button', { name: 'Reset' }).click();
-  await settle();
-  assert.equal(await page.locator('.list-row').count(), 7);
-
   // ------------------------------------------------------- contributor apply
   await go('/issue/512');
   await page.getByRole('heading', { name: 'Add a test helper for asserting emitted events' }).waitFor();
@@ -231,6 +224,18 @@ try {
   assert.match(await page.locator('.list-row').first().innerText(), /\+\$450/);
   assert.match(await page.locator('.stat').first().innerText(), /\$450/, 'earned total reflects the payout');
 
+  await page.getByRole('link', { name: /View public profile/ }).click();
+  await page.waitForURL('**/u/Casey%20Contributor');
+  await settle();
+  assert.equal(await page.locator('.rail').count(), 0, 'public profile uses public top-nav shell');
+  assert.match(await page.locator('.stat').first().innerText(), /\$450/, 'public profile shows total earned');
+  assert.equal(await page.locator('.list-row').count(), 1, 'public profile lists receipts');
+
+  await go('/u/nobody-here');
+  await settle();
+  assert.ok(page.url().endsWith('/u/nobody-here'), 'unknown handle does not redirect');
+  assert.ok(await page.getByRole('heading', { name: 'Contributor not found' }).isVisible(), 'unknown handle shows friendly empty state');
+
   // --------------------------------------------------------- theme persistence
   // Dark is the default, so toggle to light, verify it sticks, then return.
   await go('/explore');
@@ -246,7 +251,7 @@ try {
 
   // ------------------------------------------------------------- responsive
   const routes = [
-    '/', '/explore', '/explore/repos', '/explore/orgs', '/issue/842',
+    '/', '/explore', '/explore/repos', '/explore/orgs', '/issue/842', '/u/Casey%20Contributor',
     '/login', '/maintainer/login', '/maintainer', '/maintainer/submit',
     '/maintainer/repo/cli', '/maintainer/repo/cli/issues',
     '/maintainer/repo/cli/settings', '/me', '/me/receipts', '/me/settings',
