@@ -219,10 +219,68 @@ try {
   await page.getByRole('button', { name: /Merge & release/ }).click();
   await settle();
 
+  let eventsMode = 'empty';
+  await page.route('https://soroban-testnet.stellar.org/**', async route => {
+    if (eventsMode === 'error') {
+      await route.fulfill({ status: 503, contentType: 'application/json', body: '{}' });
+      return;
+    }
+    if (eventsMode === 'loaded') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          result: {
+            events: [
+              {
+                id: 'ev_842',
+                txHash: 'txhash_onchain_842',
+                ledgerClosedAt: '2026-10-12T10:00:00Z',
+                topic: ['receipt', 1, 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN7'],
+                value: {
+                  repo: 'stellar/stellar-cli',
+                  issue: 842,
+                  pull_request: 'https://github.com/stellar/stellar-cli/pull/1234',
+                  amount: 9000000000,
+                },
+              },
+            ],
+          },
+        }),
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, result: { events: [] } }),
+    });
+  });
+
   await go('/me/receipts');
   assert.equal(await page.locator('.list-row').count(), 1, 'merging writes a receipt');
   assert.match(await page.locator('.list-row').first().innerText(), /\+\$450/);
+  assert.equal(await page.locator('[data-preview-receipt-label="true"]').count(), 1, 'local receipt is labelled preview');
+  assert.equal(await page.locator('[data-onchain-receipts-empty="true"]').count(), 1, 'empty on-chain state is handled');
   assert.match(await page.locator('.stat').first().innerText(), /\$450/, 'earned total reflects the payout');
+
+  eventsMode = 'loaded';
+  await page.reload();
+  await settle();
+  assert.equal(await page.locator('[data-onchain-receipt-row="ev_842"]').count(), 1, 'on-chain receipt event is rendered');
+  assert.equal(await page.locator('[data-onchain-pr-link="true"]').count(), 1, 'on-chain receipt links PR');
+  assert.equal(await page.locator('[data-onchain-tx-link="true"]').count(), 1, 'on-chain receipt links block explorer tx');
+  assert.match(await page.locator('.stat').first().innerText(), /\$1,350/, 'earned total combines preview and on-chain receipts');
+
+  eventsMode = 'error';
+  await page.reload();
+  await settle();
+  assert.equal(await page.locator('[data-onchain-receipts-error="true"]').count(), 1, 'RPC error is shown without blanking page');
+  assert.equal(await page.locator('[data-preview-receipt-label="true"]').count(), 1, 'preview receipts still visible on RPC error');
+  errors.length = 0;
+  eventsMode = 'empty';
 
   // --------------------------------------------------------- theme persistence
   // Dark is the default, so toggle to light, verify it sticks, then return.
