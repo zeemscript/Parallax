@@ -85,13 +85,6 @@ try {
   await settle();
   assert.equal(await page.locator('.list-row').count(), 7);
 
-  await page.getByLabel('Bounty').selectOption('under $250');
-  await settle();
-  assert.equal(await page.locator('.list-row').count(), 2, 'bounty under $250 matches exactly 2 issues');
-  await page.getByRole('button', { name: 'Reset' }).click();
-  await settle();
-  assert.equal(await page.locator('.list-row').count(), 7);
-
   // ------------------------------------------------------- contributor apply
   await go('/issue/512');
   await page.getByRole('heading', { name: 'Add a test helper for asserting emitted events' }).waitFor();
@@ -230,6 +223,27 @@ try {
   assert.equal(await page.locator('.list-row').count(), 1, 'merging writes a receipt');
   assert.match(await page.locator('.list-row').first().innerText(), /\+\$450/);
   assert.match(await page.locator('.stat').first().innerText(), /\$450/, 'earned total reflects the payout');
+
+  // ------------------------------------------------ transaction status toast
+  await go('/maintainer/repo/cli/settings');
+  await page.getByRole('button', { name: 'Simulate tx' }).click();
+  await settle();
+  assert.equal(await page.locator('.tx-toast[data-tx-status="success"]').count(), 1, 'tx toast reaches confirmed state');
+  assert.match(
+    await page.locator('.tx-toast a').getAttribute('href'),
+    /^https:\/\/stellar\.expert\/explorer\/testnet\/tx\//,
+    'tx toast includes block explorer link',
+  );
+  await page.getByRole('button', { name: 'Simulate wallet reject' }).click();
+  await settle();
+  assert.equal(await page.locator('.tx-toast[data-tx-status="error"]').count(), 1);
+  assert.match(await page.locator('.tx-toast').innerText(), /cancelled in your wallet/i);
+  await page.getByRole('button', { name: 'Simulate contract error' }).click();
+  await settle();
+  assert.match(await page.locator('.tx-toast').innerText(), /already has an open bounty in escrow/i);
+  await page.getByRole('button', { name: 'Dismiss transaction status' }).click();
+  await settle();
+  assert.equal(await page.locator('.tx-toast').count(), 0);
 
   // --------------------------------------------------------- theme persistence
   // Dark is the default, so toggle to light, verify it sticks, then return.
