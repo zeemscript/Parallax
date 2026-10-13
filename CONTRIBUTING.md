@@ -145,7 +145,8 @@ changed.
 - Product, chain and asset names come from `src/lib/platform.ts`. Do not hard-code them.
 - Types and pure helpers live in `src/lib/model.ts`. Prefer a tested helper there over logic in a
   component.
-- If you change the `State` shape, bump its `version` and `storageKey` together.
+- If you change the `State` shape, add a migration function to `migrations` in `src/lib/model.ts`
+  and keep `storageKey` unchanged so saved browser state upgrades in place.
 - Every animated component must stay fully visible under `prefers-reduced-motion`.
 - Interactive elements need accessible names, and the layout must not overflow horizontally at
   390px wide.

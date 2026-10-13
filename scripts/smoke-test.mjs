@@ -237,6 +237,19 @@ try {
   await page.reload();
   assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark');
 
+  // ------------------------------------------------ v1 state migration test
+  await page.evaluate(key => {
+    const current = JSON.parse(localStorage.getItem(key));
+    const v1Fixture = { ...current, version: 1 };
+    localStorage.setItem(key, JSON.stringify(v1Fixture));
+  }, storageKey);
+  await page.reload();
+  await settle();
+  const migrated = await page.evaluate(key => JSON.parse(localStorage.getItem(key)), storageKey);
+  assert.equal(migrated.version, 2, 'v1 fixture is migrated to currentVersion (v2)');
+  assert.equal(migrated.session.contributor, 'Casey Contributor', 'migrated state preserves contributor session');
+  assert.equal(migrated.receipts.length, 1, 'migrated state preserves earned receipts');
+
   // ------------------------------------------------------------- responsive
   const routes = [
     '/', '/explore', '/explore/repos', '/explore/orgs', '/issue/842',
