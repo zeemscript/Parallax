@@ -19,6 +19,9 @@ jobs:
 
       - run: npm ci
 
+      - name: Unit tests
+        run: npm test
+
       - name: Typecheck and build
         run: npm run build
 
