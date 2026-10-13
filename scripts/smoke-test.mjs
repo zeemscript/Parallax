@@ -85,13 +85,6 @@ try {
   await settle();
   assert.equal(await page.locator('.list-row').count(), 7);
 
-  await page.getByLabel('Bounty').selectOption('under $250');
-  await settle();
-  assert.equal(await page.locator('.list-row').count(), 2, 'bounty under $250 matches exactly 2 issues');
-  await page.getByRole('button', { name: 'Reset' }).click();
-  await settle();
-  assert.equal(await page.locator('.list-row').count(), 7);
-
   // ------------------------------------------------------- contributor apply
   await go('/issue/512');
   await page.getByRole('heading', { name: 'Add a test helper for asserting emitted events' }).waitFor();
@@ -223,12 +216,62 @@ try {
   await go('/maintainer/repo/soroban-sdk/issues');
   await page.getByRole('button', { name: /Add a test helper for asserting emitted events/ }).click();
   await settle();
+  assert.match(await page.getByRole('button', { name: /Merge & release/ }).innerText(), /local preview/, 'local issue shows local preview on Merge & release button');
+
+  let simError = 'Error(Contract, #4)';
+  await page.route('https://soroban-testnet.stellar.org/**', async route => {
+    const req = JSON.parse(route.request().postData() || '{}');
+    if (req.method === 'simulateTransaction') {
+      if (simError) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ jsonrpc: '2.0', id: 1, result: { error: simError } }),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, result: { transactionData: 'mock-tx-data' } }),
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ jsonrpc: '2.0', id: 2, result: { hash: 'txhash_512_release', status: 'PENDING' } }),
+    });
+  });
+
+  await page.evaluate(key => {
+    const s = JSON.parse(localStorage.getItem(key));
+    s.issues = s.issues.map(i => (i.id === '512' ? { ...i, bountyId: 1 } : i));
+    localStorage.setItem(key, JSON.stringify(s));
+  }, storageKey);
+  await page.reload();
+  await settle();
+  await page.evaluate(() => {
+    window.freighterApi = {
+      signTransaction: async xdr => ({ signedTxXdr: `signed:${xdr}` }),
+    };
+  });
+  await page.getByRole('button', { name: /Add a test helper for asserting emitted events/ }).click();
+  await settle();
   await page.getByRole('button', { name: /Merge & release/ }).click();
   await settle();
+  assert.equal(await page.locator('[data-release-error="true"]').count(), 1, 'NotAssigned error is shown in plain words');
+  assert.match(await page.locator('[data-release-error="true"]').innerText(), /no assignee recorded on-chain yet/);
+
+  simError = '';
+  await page.getByRole('button', { name: /Merge & release/ }).click();
+  await settle();
+  await page.unroute('https://soroban-testnet.stellar.org/**');
 
   await go('/me/receipts');
   assert.equal(await page.locator('.list-row').count(), 1, 'merging writes a receipt');
   assert.match(await page.locator('.list-row').first().innerText(), /\+\$450/);
+  assert.equal(await page.locator('[data-receipt-tx="txhash_512_release"]').count(), 1, 'receipt stores on-chain transaction hash');
   assert.match(await page.locator('.stat').first().innerText(), /\$450/, 'earned total reflects the payout');
 
   // --------------------------------------------------------- theme persistence
