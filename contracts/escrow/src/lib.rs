@@ -44,6 +44,7 @@ pub enum Error {
     NotOpen = 3,
     NotAssigned = 4,
     AlreadyFunded = 5,
+    SelfAssign = 6,
 }
 
 #[contracttype]
@@ -175,6 +176,11 @@ impl Escrow {
     pub fn assign(env: Env, id: u64, assignee: Option<Address>) -> Result<(), Error> {
         let mut bounty = Self::open_bounty(&env, id)?;
         bounty.maintainer.require_auth();
+        if let Some(ref addr) = assignee {
+            if *addr == bounty.maintainer {
+                return Err(Error::SelfAssign);
+            }
+        }
         bounty.assignee = assignee.clone();
         Self::save(&env, id, &bounty);
         Assigned { id, assignee }.publish(&env);
