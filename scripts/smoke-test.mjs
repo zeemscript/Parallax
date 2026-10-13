@@ -50,6 +50,36 @@ try {
     'top nav says List your repo');
   assert.equal(await page.getByText(/\bwave\b/i).count(), 0, 'no wave wording left on the landing page');
 
+  const envCheck = await page.evaluate(() => {
+    const api = window.__PARALLAX_PLATFORM_ENV__;
+    const errors = [];
+    for (const bad of [
+      { VITE_STELLAR_NETWORK: 'devnet' },
+      { VITE_SOROBAN_RPC_URL: 'not-a-url' },
+      { VITE_ESCROW_CONTRACT_ID: 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN7' },
+      { VITE_USDC_CONTRACT_ID: 'bad-contract' },
+      { VITE_STELLAR_NETWORK: 'mainnet' },
+    ]) {
+      try {
+        api.parsePlatformEnv(bad, { isDev: true });
+      } catch (e) {
+        errors.push(e.message);
+      }
+    }
+    return {
+      network: api.PLATFORM.network,
+      sorobanRpcUrl: api.PLATFORM.sorobanRpcUrl,
+      escrowContractId: api.PLATFORM.escrowContractId,
+      usdcContractId: api.PLATFORM.usdcContractId,
+      errorCount: errors.length,
+    };
+  });
+  assert.equal(envCheck.network, 'testnet', 'PLATFORM.network defaults to testnet');
+  assert.equal(envCheck.sorobanRpcUrl, 'https://soroban-testnet.stellar.org');
+  assert.match(envCheck.escrowContractId, /^C[A-Z2-7]{55}$/);
+  assert.match(envCheck.usdcContractId, /^C[A-Z2-7]{55}$/);
+  assert.equal(envCheck.errorCount, 5, 'invalid or missing env vars fail with clear messages in development');
+
   await page.getByRole('link', { name: /Explore issues/ }).first().click();
   await page.waitForURL('**/explore');
   await page.getByRole('heading', { name: 'Explore', exact: true }).waitFor();

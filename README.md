@@ -114,8 +114,19 @@ sequenceDiagram
 git clone https://github.com/zeemscript/parallax.git
 cd parallax
 npm install
+cp .env.example .env   # optional: defaults target Stellar testnet
 npm run dev            # http://localhost:3000
 ```
+
+**Environment variables** (`src/lib/platform.ts`, documented in `.env.example`)
+
+| Variable | Default (`testnet`) | Purpose |
+| --- | --- | --- |
+| `VITE_STELLAR_NETWORK` | `testnet` | Target Stellar network (`testnet`, `local`, `standalone`, or `mainnet`) |
+| `VITE_SOROBAN_RPC_URL` | `https://soroban-testnet.stellar.org` | Soroban JSON-RPC endpoint URL |
+| `VITE_ESCROW_CONTRACT_ID` | `CDLZFC3S…GCYSC` | Deployed Parallax escrow Soroban contract ID (`C…`, 56 chars) |
+| `VITE_USDC_CONTRACT_ID` | `CBIELTK6…QDAMA` | USDC Stellar Asset Contract ID (`C…`, 56 chars) |
+
 
 **Contract** — Rust with the `wasm32v1-none` target, and the
 [Stellar CLI](https://developers.stellar.org/docs/tools/cli) 25.2+ to build the wasm
