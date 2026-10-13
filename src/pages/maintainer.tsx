@@ -464,6 +464,9 @@ export function RepoSettings() {
 /* ------------------------------------------------------------- post an issue */
 
 function PostIssueForm({ repo, onDone }: { repo: Repo; onDone: (issue: Issue) => void }) {
+  const [ghUrl, setGhUrl] = useState('');
+  const [githubNumber, setGithubNumber] = useState<number | undefined>(undefined);
+  const [importing, setImporting] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [criteria, setCriteria] = useState('');
@@ -471,10 +474,86 @@ function PostIssueForm({ repo, onDone }: { repo: Repo; onDone: (issue: Issue) =>
   const [bounty, setBounty] = useState(String(suggestedBounty('Medium')));
   const [err, setErr] = useState('');
 
+  const importFromGithub = async (rawUrl: string) => {
+    const trimmed = rawUrl.trim();
+    if (!trimmed) {
+      setGithubNumber(undefined);
+      setErr('');
+      return;
+    }
+    const match = trimmed.match(/^https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/issues\/([1-9]\d*)\/?$/i);
+    if (!match) {
+      setGithubNumber(undefined);
+      setErr('Enter a valid GitHub issue URL (https://github.com/owner/repo/issues/123).');
+      return;
+    }
+    const [, owner, name, numStr] = match;
+    if (owner.toLowerCase() !== repo.org.toLowerCase() || name.toLowerCase() !== repo.name.toLowerCase()) {
+      setGithubNumber(undefined);
+      setErr(`Issue URL must belong to ${repoName(repo)}.`);
+      return;
+    }
+    const num = Number(numStr);
+    setImporting(true);
+    setErr('');
+    try {
+      const res = await fetch(`https://api.github.com/repos/${repo.org}/${repo.name}/issues/${num}`, {
+        headers: { Accept: 'application/vnd.github+json' },
+      });
+      if (res.status === 404) {
+        setGithubNumber(undefined);
+        setErr(`GitHub issue #${num} was not found on ${repoName(repo)}.`);
+        return;
+      }
+      if (res.status === 403 || res.status === 429) {
+        setGithubNumber(undefined);
+        setErr('GitHub API rate limit reached. Try again later or fill in the fields manually.');
+        return;
+      }
+      if (!res.ok) {
+        setGithubNumber(undefined);
+        setErr(`Could not load GitHub issue #${num} (HTTP ${res.status}).`);
+        return;
+      }
+      const data = await res.json() as { title?: string; body?: string | null };
+      if (typeof data.title === 'string' && data.title.trim()) {
+        setTitle(data.title.trim().slice(0, 120));
+      }
+      const rawBody = typeof data.body === 'string' ? data.body : '';
+      const taskLines: string[] = [];
+      const descLines: string[] = [];
+      for (const line of rawBody.split(/\r?\n/)) {
+        const taskMatch = line.match(/^\s*[-*]\s+\[[ xX]\]\s+(.+)$/);
+        if (taskMatch) {
+          taskLines.push(taskMatch[1].trim());
+        } else {
+          descLines.push(line);
+        }
+      }
+      const cleanedDesc = descLines.join('\n').trim();
+      if (cleanedDesc) setDescription(cleanedDesc.slice(0, 1000));
+      if (taskLines.length > 0) setCriteria(taskLines.join('\n'));
+      setGithubNumber(num);
+    } catch {
+      setGithubNumber(undefined);
+      setErr('Network error while contacting GitHub API. You can still fill in the fields manually.');
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const submit = (e: FormEvent) => {
     e.preventDefault();
     const amount = Number(bounty);
     const lines = criteria.split('\n').map(l => l.trim()).filter(Boolean);
+    if (ghUrl.trim() && !githubNumber) {
+      const match = ghUrl.trim().match(/^https:\/\/github\.com\/([\w.-]+)\/([\w.-]+)\/issues\/([1-9]\d*)\/?$/i);
+      if (!match) { setErr('Enter a valid GitHub issue URL (https://github.com/owner/repo/issues/123).'); return; }
+      if (match[1].toLowerCase() !== repo.org.toLowerCase() || match[2].toLowerCase() !== repo.name.toLowerCase()) {
+        setErr(`Issue URL must belong to ${repoName(repo)}.`);
+        return;
+      }
+    }
     if (title.trim().length < 8) { setErr('Give the issue a title of at least 8 characters.'); return; }
     if (!lines.length) { setErr('Add at least one acceptance criterion, one per line.'); return; }
     if (!Number.isInteger(amount) || amount < 10) { setErr(`Set a bounty of at least 10 ${PLATFORM.asset}.`); return; }
@@ -487,11 +566,38 @@ function PostIssueForm({ repo, onDone }: { repo: Repo; onDone: (issue: Issue) =>
       complexity,
       bounty: amount,
       created: new Date().toISOString().slice(0, 10),
+      ...(githubNumber ? { githubNumber } : {}),
     });
   };
 
   return (
     <form className="col" style={{ gap: 'var(--s3)' }} onSubmit={submit}>
+      <label className="field">
+        <span>GitHub issue URL (optional)</span>
+        <input
+          className="input"
+          type="url"
+          aria-label="GitHub issue URL"
+          placeholder={`https://github.com/${repoName(repo)}/issues/123`}
+          value={ghUrl}
+          onChange={e => {
+            const val = e.target.value;
+            setGhUrl(val);
+            if (!val.trim()) {
+              setGithubNumber(undefined);
+              setErr('');
+            } else if (/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/issues\/[1-9]\d*\/?$/i.test(val.trim())) {
+              void importFromGithub(val);
+            }
+          }}
+          onBlur={() => {
+            if (ghUrl.trim() && !/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/issues\/[1-9]\d*\/?$/i.test(ghUrl.trim())) {
+              setErr('Enter a valid GitHub issue URL (https://github.com/owner/repo/issues/123).');
+            }
+          }}
+        />
+      </label>
+      {importing && <p className="hint">Importing issue details from GitHub…</p>}
       <label className="field">
         <span>Title</span>
         <input className="input" aria-label="Issue title" autoFocus maxLength={120}
