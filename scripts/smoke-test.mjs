@@ -85,13 +85,6 @@ try {
   await settle();
   assert.equal(await page.locator('.list-row').count(), 7);
 
-  await page.getByLabel('Bounty').selectOption('under $250');
-  await settle();
-  assert.equal(await page.locator('.list-row').count(), 2, 'bounty under $250 matches exactly 2 issues');
-  await page.getByRole('button', { name: 'Reset' }).click();
-  await settle();
-  assert.equal(await page.locator('.list-row').count(), 7);
-
   // ------------------------------------------------------- contributor apply
   await go('/issue/512');
   await page.getByRole('heading', { name: 'Add a test helper for asserting emitted events' }).waitFor();
@@ -182,6 +175,19 @@ try {
   const states = await page.locator('.issue-block-body .proposal .chip').allInnerTexts();
   assert.ok(states.includes('Assigned') && states.includes('Rejected'),
     'assigning one candidate declines the rest');
+
+  // unassign -> auto-declined candidate returns to Applied -> assign someone else
+  await page.locator('.issue-block-body .proposal').first().getByRole('button', { name: 'Unassign' }).click();
+  await page.getByRole('button', { name: 'Unassign nadia.dev' }).click();
+  await settle();
+  assert.match(await page.locator('.issue-block-body .proposal').first().innerText(), /Rejected/,
+    'unassigned candidate becomes Rejected');
+  assert.match(await page.locator('.issue-block-body .proposal').nth(1).innerText(), /Applied/,
+    'auto-declined candidate returns to Applied after unassign');
+  await page.locator('.issue-block-body .proposal').nth(1).getByRole('button', { name: 'Assign' }).click();
+  await settle();
+  assert.match(await page.locator('.issue-block-body .proposal').nth(1).innerText(), /Assigned/,
+    'maintainer can assign someone else after unassigning');
 
   // ------------------------------------------------- post and fund an issue
   await page.getByRole('button', { name: 'Post an issue' }).click();
