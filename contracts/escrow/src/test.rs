@@ -4,7 +4,7 @@ use super::*;
 use soroban_sdk::{
     testutils::{Address as _, Events as _},
     token::{StellarAssetClient, TokenClient},
-    Address, Env, Event as _, String,
+    vec, Address, Env, Event as _, String,
 };
 
 struct Setup<'a> {
@@ -163,5 +163,76 @@ fn release_without_maintainer_auth_fails() {
     s.escrow.release(
         &id,
         &String::from_str(&s.env, "https://github.com/stellar/stellar-cli/pull/1"),
+    );
+}
+
+#[test]
+fn release_split_pays_each_recipient_and_emits_receipts() {
+    let s = setup();
+    let reviewer = Address::generate(&s.env);
+    let id = s.escrow.fund(&s.maintainer, &s.repo, &842, &900);
+    let pr = String::from_str(&s.env, "https://github.com/stellar/stellar-cli/pull/1234");
+    let shares = vec![
+        &s.env,
+        (s.contributor.clone(), 600_i128),
+        (reviewer.clone(), 300_i128),
+    ];
+
+    s.escrow.release_split(&id, &pr, &shares);
+
+    let events = s.env.events().all();
+    let r1 = Receipt {
+        id,
+        contributor: s.contributor.clone(),
+        repo: s.repo.clone(),
+        issue: 842,
+        pull_request: pr.clone(),
+        amount: 600,
+    };
+    let r2 = Receipt {
+        id,
+        contributor: reviewer.clone(),
+        repo: s.repo.clone(),
+        issue: 842,
+        pull_request: pr,
+        amount: 300,
+    };
+    assert!(events.events().contains(&r1.to_xdr(&s.env, &s.escrow.address)));
+    assert!(events.events().contains(&r2.to_xdr(&s.env, &s.escrow.address)));
+
+    assert_eq!(s.usdc.balance(&s.contributor), 600);
+    assert_eq!(s.usdc.balance(&reviewer), 300);
+    assert_eq!(s.usdc.balance(&s.escrow.address), 0);
+    assert_eq!(s.escrow.get(&id).status, Status::Paid);
+}
+
+#[test]
+fn release_split_validates_sum_non_empty_and_open_status() {
+    let s = setup();
+    let reviewer = Address::generate(&s.env);
+    let id = s.escrow.fund(&s.maintainer, &s.repo, &842, &900);
+    let pr = String::from_str(&s.env, "https://github.com/stellar/stellar-cli/pull/1234");
+
+    let empty = Vec::new(&s.env);
+    assert_eq!(
+        s.escrow.try_release_split(&id, &pr, &empty),
+        Err(Ok(Error::InvalidSplit))
+    );
+
+    let mismatch = vec![
+        &s.env,
+        (s.contributor.clone(), 500_i128),
+        (reviewer.clone(), 300_i128),
+    ];
+    assert_eq!(
+        s.escrow.try_release_split(&id, &pr, &mismatch),
+        Err(Ok(Error::InvalidSplit))
+    );
+
+    s.escrow.refund(&id);
+    let valid = vec![&s.env, (s.contributor.clone(), 900_i128)];
+    assert_eq!(
+        s.escrow.try_release_split(&id, &pr, &valid),
+        Err(Ok(Error::NotOpen))
     );
 }
