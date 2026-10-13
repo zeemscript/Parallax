@@ -46,8 +46,10 @@ interface State {
 }
 ```
 
-- **Shape changes.** If you change `State`, bump `version` and `storageKey` together. `readState`
-  discards anything that does not match, so old browser data is reset instead of misread.
+- **Shape changes.** If you change `State`, append a migration function `(vN) => vN+1` to
+  `migrations` in `src/lib/model.ts` (which advances `currentVersion`) while keeping `storageKey`
+  unchanged. `readState` runs the needed migrations sequentially and falls back to `initialState()`
+  only if a migration throws or the migrated result fails validation.
 - **Derived values** (escrowed totals, whether an issue is paid, status tones) are pure helpers in
   `model.ts`. Keep logic there rather than in components so it can be tested and reused.
 - **The signed-in contributor's own application** has no `applicant` field. Seeded sample
