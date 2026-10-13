@@ -31,7 +31,34 @@ export interface Issue {
   complexity: Complexity;
   /** Fixed bounty in the platform asset, escrowed when the issue is posted. */
   bounty: number;
+  /** On-chain escrow bounty id when funded via the Soroban contract. */
+  bountyId?: number;
+  /** On-chain Stellar transaction hash when funded via the Soroban contract. */
+  txHash?: string;
   created: string;
+}
+
+export const USDC_DECIMALS = 7;
+export const USDC_SCALE = 10_000_000n;
+
+/** Convert a human USDC amount into 7-decimal stroops (e.g. 250 -> 2500000000n). */
+export function toUsdcStroops(amount: number): bigint {
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new RangeError('Amount must be a positive number.');
+  }
+  const [wholePart, fracPart = ''] = amount.toFixed(USDC_DECIMALS).split('.');
+  const paddedFrac = (fracPart + '0000000').slice(0, USDC_DECIMALS);
+  return BigInt(wholePart) * USDC_SCALE + BigInt(paddedFrac);
+}
+
+export function formatFundError(raw: string): string {
+  if (/AlreadyFunded|Contract,\s*#?5\b/i.test(raw)) {
+    return 'This issue already has an open bounty funded on-chain.';
+  }
+  if (/InvalidAmount|Contract,\s*#?1\b/i.test(raw)) {
+    return 'Bounty amount must be greater than zero.';
+  }
+  return raw;
 }
 
 export interface Application {
