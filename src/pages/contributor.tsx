@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, GitPullRequest } from 'lucide-react';
 import {
-  dateLabel, formatMoney, initialState, isOwnApplication, isStellarAddress, repoName, shortAddress, statusTone,
+  MAX_CONCURRENT_ASSIGNMENTS, activeAssignmentsFor, dateLabel, formatMoney, initialState, isOwnApplication, isStellarAddress, repoName, shortAddress, statusTone,
 } from '../lib/model';
 import { PLATFORM } from '../lib/platform';
 import { useApp } from '../lib/store';
@@ -15,7 +15,7 @@ export function ContributorWork() {
   const [err, setErr] = useState('');
 
   const mine = state.applications.filter(isOwnApplication);
-  const active = mine.filter(a => ['Assigned', 'PR submitted'].includes(a.status)).length;
+  const active = activeAssignmentsFor(state.applications, undefined);
 
   const submitPr = () => {
     if (!/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/[1-9]\d*\/?$/.test(pr.trim())) {
@@ -36,7 +36,7 @@ export function ContributorWork() {
     <Page>
       <PageHead
         title="Assignments"
-        sub={`${active} of 3 concurrent slots in use.`}
+        sub={`${active} of ${MAX_CONCURRENT_ASSIGNMENTS} concurrent slots in use.`}
         action={<Link className="btn sm" to="/explore">Find issues<ArrowRight size={13} /></Link>}
       />
       {mine.length ? (

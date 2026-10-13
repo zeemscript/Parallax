@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { ArrowUpRight, Check, GitPullRequest, Lock } from 'lucide-react';
-import { applicantName, formatMoney, isOwnApplication, repoName, statusTone } from '../lib/model';
+import { MAX_CONCURRENT_ASSIGNMENTS, activeAssignmentsFor, applicantName, formatMoney, isOwnApplication, repoName, statusTone } from '../lib/model';
 import { PLATFORM } from '../lib/platform';
 import { useApp } from '../lib/store';
 import { Avatar, Chip, Crumbs, Empty, ModalHost, Page } from '../components/ui';
@@ -23,7 +23,9 @@ export function IssuePage() {
   const mine = proposals.find(isOwnApplication);
   const taken = proposals.find(a => ['Assigned', 'PR submitted', 'Paid'].includes(a.status));
   const paid = taken?.status === 'Paid';
-  const canApply = !mine && !taken;
+  const myActive = activeAssignmentsFor(state.applications, undefined);
+  const atLimit = !!me && myActive >= MAX_CONCURRENT_ASSIGNMENTS;
+  const canApply = !mine && !taken && !atLimit;
 
   const submit = () => {
     if (message.trim().length < 30) { setErr('Add at least 30 characters so the maintainer can judge your plan.'); return; }
@@ -45,7 +47,9 @@ export function IssuePage() {
   const label = mine
     ? (mine.status === 'Rejected' ? 'Not selected' : `Proposal ${mine.status.toLowerCase()}`)
     : paid ? 'Bounty paid'
-      : taken ? 'Already assigned' : 'Apply to this issue';
+      : taken ? 'Already assigned'
+        : atLimit ? `At ${MAX_CONCURRENT_ASSIGNMENTS}-issue assignment limit`
+          : 'Apply to this issue';
 
   return (
     <Page className="detail">
@@ -83,6 +87,11 @@ export function IssuePage() {
                 <span className="spacer" />
                 <button className="btn primary sm" disabled={!canApply} onClick={startApply}>{label}</button>
               </div>
+              {atLimit && !mine && !taken && (
+                <p className="hint" role="status" style={{ marginBottom: 'var(--s3)' }}>
+                  You already have {MAX_CONCURRENT_ASSIGNMENTS} active assignments in progress. Complete one before applying to another issue.
+                </p>
+              )}
               {proposals.length ? (
                 <div className="list">
                   {proposals.map(p => (
