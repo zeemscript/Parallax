@@ -4,7 +4,7 @@ use super::*;
 use soroban_sdk::{
     testutils::{Address as _, Events as _},
     token::{StellarAssetClient, TokenClient},
-    Address, Env, Event as _, String,
+    vec, Address, Env, Event as _, String,
 };
 
 struct Setup<'a> {
@@ -164,4 +164,30 @@ fn release_without_maintainer_auth_fails() {
         &id,
         &String::from_str(&s.env, "https://github.com/stellar/stellar-cli/pull/1"),
     );
+}
+
+#[test]
+fn open_bounties_tracks_fund_release_and_refund_per_maintainer() {
+    let s = setup();
+    let other_maintainer = Address::generate(&s.env);
+    StellarAssetClient::new(&s.env, &s.usdc.address).mint(&other_maintainer, &5_000);
+
+    let id1 = s.escrow.fund(&s.maintainer, &s.repo, &101, &200);
+    let id2 = s.escrow.fund(&s.maintainer, &s.repo, &102, &300);
+    let id3 = s.escrow.fund(&s.maintainer, &s.repo, &103, &400);
+    let other_id = s.escrow.fund(&other_maintainer, &s.repo, &201, &500);
+
+    assert_eq!(s.escrow.open_bounties(&s.maintainer), vec![&s.env, id1, id2, id3]);
+    assert_eq!(s.escrow.open_bounties(&other_maintainer), vec![&s.env, other_id]);
+
+    // Removing the middle bounty on release preserves the order of the rest.
+    s.escrow.assign(&id2, &Some(s.contributor.clone()));
+    let pr = String::from_str(&s.env, "https://github.com/stellar/stellar-cli/pull/102");
+    s.escrow.release(&id2, &pr);
+    assert_eq!(s.escrow.open_bounties(&s.maintainer), vec![&s.env, id1, id3]);
+
+    // Refunding removes the id as well.
+    s.escrow.refund(&id1);
+    assert_eq!(s.escrow.open_bounties(&s.maintainer), vec![&s.env, id3]);
+    assert_eq!(s.escrow.open_bounties(&other_maintainer), vec![&s.env, other_id]);
 }
