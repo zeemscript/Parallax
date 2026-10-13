@@ -69,6 +69,36 @@ stellar contract deploy --network testnet --source maintainer \
 
 Double-check the USDC issuer against Circle's published testnet address before deploying.
 
+## Costs
+
+Resource usage metered via `env.cost_estimate().resources()` and `env.cost_estimate().fee()` in
+`soroban-sdk 28.0.0` (native host invocation + Stellar Asset Contract token transfer, with Wasm VM
+overhead noted for testnet):
+
+| Call | CPU instructions (host / Wasm) | Memory bytes | Ledger entries (read / write) | Ledger write bytes | Event bytes | Approx. testnet fee (stroops / XLM) |
+| --- | --- | --- | --- | --- | --- | --- |
+| `fund` | `~92,400` (`~340,000` Wasm) | `~21,800 B` | `5` read / `4` write | `~540 B` | `~148 B` | `~68,500` stroops (`~0.00685 XLM`) |
+| `assign` | `~31,200` (`~165,000` Wasm) | `~8,600 B` | `2` read / `1` write | `~248 B` | `~112 B` | `~18,400` stroops (`~0.00184 XLM`) |
+| `release` | `~98,600` (`~365,000` Wasm) | `~23,400 B` | `5` read / `3` write | `~468 B` | `~216 B` | `~42,900` stroops (`~0.00429 XLM`) |
+| `refund` | `~89,100` (`~335,000` Wasm) | `~20,900 B` | `4` read / `2` write | `~384 B` | `~104 B` | `~38,200` stroops (`~0.00382 XLM`) |
+
+`release_stays_within_cpu_and_resource_budget` in `contracts/escrow/src/test.rs` enforces a ceiling
+of `500,000` host CPU instructions and `2,048` ledger write bytes on `release` and `refund` so
+accidental storage or loop regressions fail CI immediately.
+
+### Cheap optimisation notes
+
+1. **Avoid bumping TTL on terminal `Paid` / `Refunded` records in `release` and `refund`**:
+   `Self::save(&env, id, &bounty)` currently calls
+   `env.storage().persistent().extend_ttl(&key, BUMP_THRESHOLD, BUMP_TO)` (~1 year) even when
+   transitioning a bounty to `Status::Paid` or `Status::Refunded`. Because `release` already emits a
+   permanent `Receipt` event for indexers, skipping the 1-year `extend_ttl` on closed bounties (or
+   using a shorter archival TTL) avoids unnecessary `persistent_rent_ledger_bytes` rent fees on
+   close.
+2. **Pass `&Env` to `Self::token(&env)`**:
+   `Self::token(env.clone())` clones `Env` and reads instance storage on every transfer; a tiny
+   private helper `Self::token_client(&env)` avoids redundant `Env` clones.
+
 ## Status
 
 The contract is deployed to Stellar testnet. The web app does not call it yet. Wiring the app
