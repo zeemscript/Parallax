@@ -8,7 +8,10 @@ request merges. If the issue is withdrawn, they go back to the maintainer.
 
 | Function | Auth | What it does |
 | --- | --- | --- |
-| `__constructor(token)` | deployer | Sets the token every bounty is paid in (USDC's Stellar Asset Contract). |
+| `__constructor(token, admin)` | deployer | Sets the payment token and the administrator allowed to upgrade the contract. |
+| `admin() -> Address` | — | Reads the current upgrade administrator. |
+| `set_admin(new_admin)` | admin | Rotates the upgrade administrator. |
+| `upgrade(new_wasm_hash)` | admin | Upgrades the contract Wasm in-place via `update_current_contract_wasm`. |
 | `fund(maintainer, repo, issue, amount) -> u64` | maintainer | Moves `amount` into escrow for `repo#issue` and returns the bounty id. One open bounty per issue. |
 | `assign(id, assignee?)` | maintainer | Sets or clears the contributor who will be paid. |
 | `release(id, pull_request)` | maintainer | Pays the assignee and emits a `receipt` event. |
@@ -18,7 +21,8 @@ request merges. If the issue is withdrawn, they go back to the maintainer.
 | `token() -> Address` | — | The payment token. |
 
 A bounty is `Open` until it is `Paid` or `Refunded`; both are final. Nothing can move funds
-except the maintainer who funded the bounty.
+except the maintainer who funded the bounty. The `admin` role can only call `upgrade` and
+`set_admin` — it has no authority to `assign`, `release`, or `refund` any bounty.
 
 ### Events
 

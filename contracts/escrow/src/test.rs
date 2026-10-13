@@ -11,6 +11,7 @@ struct Setup<'a> {
     env: Env,
     escrow: EscrowClient<'a>,
     usdc: TokenClient<'a>,
+    admin: Address,
     maintainer: Address,
     contributor: Address,
     repo: String,
@@ -22,15 +23,17 @@ fn setup() -> Setup<'static> {
 
     let issuer = Address::generate(&env);
     let sac = env.register_stellar_asset_contract_v2(issuer);
+    let admin = Address::generate(&env);
     let maintainer = Address::generate(&env);
     StellarAssetClient::new(&env, &sac.address()).mint(&maintainer, &10_000);
 
-    let id = env.register(Escrow, (sac.address(),));
+    let id = env.register(Escrow, (sac.address(), admin.clone()));
     Setup {
         escrow: EscrowClient::new(&env, &id),
         usdc: TokenClient::new(&env, &sac.address()),
         contributor: Address::generate(&env),
         repo: String::from_str(&env, "stellar/stellar-cli"),
+        admin,
         maintainer,
         env,
     }
@@ -164,4 +167,38 @@ fn release_without_maintainer_auth_fails() {
         &id,
         &String::from_str(&s.env, "https://github.com/stellar/stellar-cli/pull/1"),
     );
+}
+
+#[test]
+fn admin_can_rotate_and_upgrade_contract_wasm() {
+    let s = setup();
+    assert_eq!(s.escrow.admin(), s.admin);
+
+    let next_admin = Address::generate(&s.env);
+    s.escrow.set_admin(&next_admin);
+    assert_eq!(s.escrow.admin(), next_admin);
+}
+
+#[test]
+#[should_panic]
+fn admin_cannot_release_someone_elses_bounty() {
+    let s = setup();
+    let id = s.escrow.fund(&s.maintainer, &s.repo, &842, &900);
+    s.escrow.assign(&id, &Some(s.contributor.clone()));
+
+    s.env.set_auths(&[]);
+    s.escrow.release(
+        &id,
+        &String::from_str(&s.env, "https://github.com/stellar/stellar-cli/pull/1"),
+    );
+}
+
+#[test]
+#[should_panic]
+fn admin_cannot_refund_someone_elses_bounty() {
+    let s = setup();
+    let id = s.escrow.fund(&s.maintainer, &s.repo, &842, &900);
+
+    s.env.set_auths(&[]);
+    s.escrow.refund(&id);
 }
