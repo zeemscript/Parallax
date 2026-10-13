@@ -116,6 +116,39 @@ try {
   await page.waitForURL('**/maintainer');
   await page.getByRole('heading', { name: 'No repositories connected' }).waitFor();
 
+  // ------------------------------- maintainer wallet connection in rail footer
+  await page.getByRole('button', { name: 'Connect wallet' }).click();
+  await settle();
+  assert.equal(await page.locator('[data-freighter-install="true"]').count(), 1, 'links to install page when Freighter is missing');
+  await page.evaluate(() => {
+    window.freighterApi = {
+      requestAccess: async () => ({ address: 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN7' }),
+      getNetworkDetails: async () => ({ network: 'MAINNET' }),
+    };
+  });
+  await page.getByRole('button', { name: 'Connect wallet' }).click();
+  await settle();
+  assert.equal(await page.locator('[data-maintainer-wallet="wrong-network"]').count(), 1, 'warns when Freighter is on a different network');
+  assert.equal(await page.locator('[data-wallet-network-warning="true"]').count(), 1);
+  await page.getByRole('button', { name: 'Disconnect' }).click();
+  await settle();
+  await page.evaluate(() => {
+    window.freighterApi = {
+      requestAccess: async () => ({ address: 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN7' }),
+      getNetworkDetails: async () => ({ network: 'TESTNET' }),
+    };
+  });
+  await page.getByRole('button', { name: 'Connect wallet' }).click();
+  await settle();
+  assert.equal(await page.locator('[data-maintainer-wallet="ready"]').count(), 1, 'wallet ready on matching network');
+  assert.match(await page.locator('[data-maintainer-wallet="ready"]').innerText(), /GAAZ…CWN7/);
+  await page.reload();
+  await settle();
+  assert.equal(await page.locator('[data-maintainer-wallet="ready"]').count(), 1, 'wallet connection survives reload');
+  await page.getByRole('button', { name: 'Disconnect' }).click();
+  await settle();
+  assert.equal(await page.locator('[data-maintainer-wallet="disconnected"]').count(), 1, 'disconnect clears wallet');
+
   // ------------------------------- connecting does not open a dashboard by itself
   await page.getByRole('link', { name: /Connect a repository/ }).click();
   await page.waitForURL('**/maintainer/submit');
