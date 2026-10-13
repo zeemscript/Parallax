@@ -161,6 +161,7 @@ work.
 - Add new errors at the end of the `Error` enum; never renumber existing ones.
 - Document new functions, events and errors in [contracts/README.md](contracts/README.md).
 - Commit the generated `test_snapshots/` files.
+- After any contract interface change (new or modified entry points, types, or errors), run `npm run contract:bindings` from the repository root and commit the updated files in `src/lib/escrow-client/`.
 
 ## Getting help
 
