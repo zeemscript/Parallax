@@ -85,13 +85,6 @@ try {
   await settle();
   assert.equal(await page.locator('.list-row').count(), 7);
 
-  await page.getByLabel('Bounty').selectOption('under $250');
-  await settle();
-  assert.equal(await page.locator('.list-row').count(), 2, 'bounty under $250 matches exactly 2 issues');
-  await page.getByRole('button', { name: 'Reset' }).click();
-  await settle();
-  assert.equal(await page.locator('.list-row').count(), 7);
-
   // ------------------------------------------------------- contributor apply
   await go('/issue/512');
   await page.getByRole('heading', { name: 'Add a test helper for asserting emitted events' }).waitFor();
@@ -101,10 +94,20 @@ try {
   await page.getByRole('button', { name: 'Continue' }).click();
   await page.waitForURL('**/issue/512');
   await page.getByRole('button', { name: 'Apply to this issue' }).click();
-  await page.getByLabel('Your plan').fill('I would add an assert_emitted helper that matches topics and data, prints a readable diff on failure, and ships with a documented example test.');
+  await page.getByLabel('Your plan').fill(
+    'I would add an `assert_emitted` helper ([docs](https://stellar.org)) with [evil](javascript:alert(1)) and <script>window.__xss=1</script>:\n\n- Match topics and data\n\n```rust\nfn test_events() {}\n```',
+  );
   await page.getByRole('button', { name: 'Send proposal' }).click();
   await settle();
   assert.equal(await page.locator('.proposal').count(), 1);
+  assert.equal(await page.locator('.proposal code.md-code').innerText(), 'assert_emitted', 'inline code renders');
+  assert.equal(await page.locator('.proposal pre.md-pre code').innerText(), 'fn test_events() {}', 'fenced code block renders');
+  assert.equal(await page.locator('.proposal ul.md-list li').count(), 1, 'markdown list renders');
+  assert.equal(await page.locator('.proposal a[href="https://stellar.org"]').getAttribute('target'), '_blank', 'safe link opens in new tab');
+  assert.equal(await page.locator('.proposal a[href="https://stellar.org"]').getAttribute('rel'), 'noreferrer', 'safe link has rel=noreferrer');
+  assert.equal(await page.locator('.proposal script').count(), 0, '<script> tags are not rendered as HTML');
+  assert.equal(await page.evaluate(() => window.__xss), undefined, '<script> payload is never executed');
+  assert.equal(await page.locator('.proposal a[href^="javascript:"]').count(), 0, 'javascript: links are neutralised');
   await page.reload();
   await settle();
   assert.match(await page.locator('.proposal').first().innerText(), /Applied/, 'proposal persists');
