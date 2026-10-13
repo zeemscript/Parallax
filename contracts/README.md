@@ -50,6 +50,7 @@ Requires Rust with the `wasm32v1-none` target and the
 ```bash
 cd contracts
 cargo test                 # unit tests against a local Soroban environment
+cargo doc --no-deps        # build contract API documentation
 stellar contract build     # writes target/wasm32v1-none/release/parallax_escrow.wasm
 ```
 
