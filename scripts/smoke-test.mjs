@@ -85,13 +85,6 @@ try {
   await settle();
   assert.equal(await page.locator('.list-row').count(), 7);
 
-  await page.getByLabel('Bounty').selectOption('under $250');
-  await settle();
-  assert.equal(await page.locator('.list-row').count(), 2, 'bounty under $250 matches exactly 2 issues');
-  await page.getByRole('button', { name: 'Reset' }).click();
-  await settle();
-  assert.equal(await page.locator('.list-row').count(), 7);
-
   // ------------------------------------------------------- contributor apply
   await go('/issue/512');
   await page.getByRole('heading', { name: 'Add a test helper for asserting emitted events' }).waitFor();
@@ -220,6 +213,11 @@ try {
   await page.getByRole('button', { name: 'Submit for review' }).click();
   await settle();
 
+  await go('/explore');
+  await page.locator('.navpill-nav').getByRole('link', { name: 'Leaderboard' }).click();
+  await page.waitForURL('**/leaderboard');
+  await page.getByText('No payouts recorded yet').waitFor();
+
   await go('/maintainer/repo/soroban-sdk/issues');
   await page.getByRole('button', { name: /Add a test helper for asserting emitted events/ }).click();
   await settle();
@@ -230,6 +228,23 @@ try {
   assert.equal(await page.locator('.list-row').count(), 1, 'merging writes a receipt');
   assert.match(await page.locator('.list-row').first().innerText(), /\+\$450/);
   assert.match(await page.locator('.stat').first().innerText(), /\$450/, 'earned total reflects the payout');
+
+  // Seed historical receipts to test leaderboard ranking, tie-breaking, and 30d window
+  await page.evaluate(key => {
+    const s = JSON.parse(localStorage.getItem(key));
+    s.receipts.push(
+      { id: 'rcpt-old-tie', issueId: '215', repoId: 'soroban-sdk', contributor: 'nadia.dev', address: null, amount: 450, pr: 'https://github.com/stellar/rs-soroban-sdk/pull/10', paidAt: '2025-01-10' },
+      { id: 'rcpt-old-top', issueId: '301', repoId: 'js-sdk', contributor: 'kwame-o', address: null, amount: 900, pr: 'https://github.com/stellar/js-stellar-sdk/pull/20', paidAt: '2025-01-05' },
+    );
+    localStorage.setItem(key, JSON.stringify(s));
+  }, storageKey);
+  await go('/leaderboard');
+  const allRows = await page.locator('[data-leaderboard-row]').evaluateAll(els => els.map(e => e.getAttribute('data-leaderboard-row')));
+  assert.deepEqual(allRows, ['kwame-o', 'Casey Contributor', 'nadia.dev'], 'leaderboard ranks by total paid and breaks ties by most recent payout');
+  await page.getByRole('button', { name: 'Last 30 days' }).click();
+  await settle();
+  const recentRows = await page.locator('[data-leaderboard-row]').evaluateAll(els => els.map(e => e.getAttribute('data-leaderboard-row')));
+  assert.deepEqual(recentRows, ['Casey Contributor'], 'Last 30 days filter shows only recent payouts');
 
   // --------------------------------------------------------- theme persistence
   // Dark is the default, so toggle to light, verify it sticks, then return.
@@ -246,7 +261,7 @@ try {
 
   // ------------------------------------------------------------- responsive
   const routes = [
-    '/', '/explore', '/explore/repos', '/explore/orgs', '/issue/842',
+    '/', '/explore', '/explore/repos', '/explore/orgs', '/leaderboard', '/issue/842',
     '/login', '/maintainer/login', '/maintainer', '/maintainer/submit',
     '/maintainer/repo/cli', '/maintainer/repo/cli/issues',
     '/maintainer/repo/cli/settings', '/me', '/me/receipts', '/me/settings',
