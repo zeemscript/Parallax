@@ -5,7 +5,7 @@ import {
   ArrowRight, Check, Clock, GitPullRequest, Plus, ShieldCheck, Star, X,
 } from 'lucide-react';
 import {
-  applicantName, dateLabel, escrowedTotal, formatMoney, isOwnApplication, nextIssueId, repoName,
+  MAX_CONCURRENT_ASSIGNMENTS, activeAssignmentsFor, applicantName, dateLabel, escrowedTotal, formatMoney, isOwnApplication, nextIssueId, repoName,
   reposOwnedBy, statusTone, suggestedBounty, type Application, type Complexity, type Issue, type Repo,
 } from '../lib/model';
 import { useApp } from '../lib/store';
@@ -271,6 +271,7 @@ export function RepoIssues() {
   const proposalsFor = (id: string) => state.applications.filter(a => a.issueId === id);
 
   const assign = (target: Application) => {
+    if (activeAssignmentsFor(state.applications, target.applicant) >= MAX_CONCURRENT_ASSIGNMENTS) return;
     setState(s => ({
       ...s,
       applications: s.applications.map(a =>
@@ -353,38 +354,44 @@ export function RepoIssues() {
                     >
                       <div className="issue-block-body">
                         <p className="muted">{issue.description}</p>
-                        {proposals.length ? proposals.map(p => (
-                          <div className="proposal" key={`${p.issueId}-${p.applicant ?? 'me'}`}>
-                            <div className="row" style={{ gap: 8 }}>
-                              <Avatar name={applicantName(p, state.session.contributor ?? '?')} />
-                              <strong className="row-title">{applicantName(p, 'You')}</strong>
-                              {isOwnApplication(p) && <Chip>You</Chip>}
-                              <span className="spacer" />
-                              <Chip tone={statusTone(p.status)}>
-                                {p.status}
-                              </Chip>
-                            </div>
-                            <p className="muted proposal-body">{p.message}</p>
-                            {!chosen && p.status === 'Applied' && (
-                              <div className="row" style={{ gap: 6 }}>
-                                <button className="btn primary xs" onClick={() => assign(p)}>
-                                  <Check size={12} />Assign
-                                </button>
-                                <button className="btn ghost xs" onClick={() => decline(p)}>Decline</button>
+                        {proposals.length ? proposals.map(p => {
+                          const applicantAtLimit = activeAssignmentsFor(state.applications, p.applicant) >= MAX_CONCURRENT_ASSIGNMENTS;
+                          return (
+                            <div className="proposal" key={`${p.issueId}-${p.applicant ?? 'me'}`}>
+                              <div className="row" style={{ gap: 8 }}>
+                                <Avatar name={applicantName(p, state.session.contributor ?? '?')} />
+                                <strong className="row-title">{applicantName(p, 'You')}</strong>
+                                {isOwnApplication(p) && <Chip>You</Chip>}
+                                <span className="spacer" />
+                                <Chip tone={statusTone(p.status)}>
+                                  {p.status}
+                                </Chip>
                               </div>
-                            )}
-                            {p.pr && (
-                              <a className="row side-link" href={p.pr} target="_blank" rel="noreferrer">
-                                <GitPullRequest size={13} />{p.pr.replace('https://github.com/', '')}
-                              </a>
-                            )}
-                            {p.status === 'PR submitted' && (
-                              <button className="btn primary xs" onClick={() => release(issue, p)}>
-                                <Check size={12} />Merge &amp; release ${formatMoney(issue.bounty)}
-                              </button>
-                            )}
-                          </div>
-                        )) : <p className="hint">No proposals on this issue yet.</p>}
+                              <p className="muted proposal-body">{p.message}</p>
+                              {!chosen && p.status === 'Applied' && (
+                                <div className="row wrap" style={{ gap: 6 }}>
+                                  <button className="btn primary xs" disabled={applicantAtLimit} onClick={() => assign(p)}>
+                                    <Check size={12} />Assign
+                                  </button>
+                                  <button className="btn ghost xs" onClick={() => decline(p)}>Decline</button>
+                                  {applicantAtLimit && (
+                                    <span className="hint">At {MAX_CONCURRENT_ASSIGNMENTS}-issue assignment limit</span>
+                                  )}
+                                </div>
+                              )}
+                              {p.pr && (
+                                <a className="row side-link" href={p.pr} target="_blank" rel="noreferrer">
+                                  <GitPullRequest size={13} />{p.pr.replace('https://github.com/', '')}
+                                </a>
+                              )}
+                              {p.status === 'PR submitted' && (
+                                <button className="btn primary xs" onClick={() => release(issue, p)}>
+                                  <Check size={12} />Merge &amp; release ${formatMoney(issue.bounty)}
+                                </button>
+                              )}
+                            </div>
+                          );
+                        }) : <p className="hint">No proposals on this issue yet.</p>}
                       </div>
                     </motion.div>
                   )}
