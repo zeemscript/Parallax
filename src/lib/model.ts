@@ -62,11 +62,18 @@ export interface Session {
   maintainer: string | null;
 }
 
+export interface MaintainerWallet {
+  address: string;
+  network: string;
+}
+
 export interface State {
   version: 1;
   session: Session;
   /** The signed-in contributor's Stellar payout address. */
   payoutAddress: string | null;
+  /** Connected Freighter wallet in the maintainer workspace. */
+  maintainerWallet?: MaintainerWallet | null;
   repos: Repo[];
   issues: Issue[];
   applications: Application[];
