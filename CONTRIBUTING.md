@@ -123,7 +123,15 @@ cd contracts
 cargo fmt --all --check
 cargo clippy --all-targets -- -D warnings
 cargo test
+cargo llvm-cov --all-targets --summary-only --ignore-filename-regex 'test\.rs$' --fail-under-lines 90
 stellar contract build
+```
+
+To generate and open the HTML coverage report locally (requires `rustup component add llvm-tools-preview` and `cargo install cargo-llvm-cov`):
+
+```bash
+cd contracts
+cargo llvm-cov --html --ignore-filename-regex 'test\.rs$' --open
 ```
 
 ## Pull requests
