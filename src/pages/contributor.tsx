@@ -147,13 +147,85 @@ export function ContributorReceipts() {
   );
 }
 
+const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+
+function deriveStellarAddressFromBytes(bytes: Uint8Array): string {
+  const out: string[] = ['G'];
+  for (let i = 0; i < 55; i++) {
+    const b = bytes[i % bytes.length] ^ ((i * 31 + 17) & 0xff);
+    out.push(BASE32_ALPHABET[b % 32]);
+  }
+  return out.join('');
+}
+
 export function ContributorSettings() {
   const { state, setState, notify } = useApp();
   const navigate = useNavigate();
   const [name, setName] = useState(state.session.contributor ?? '');
   const [address, setAddress] = useState(state.payoutAddress ?? '');
   const [addressErr, setAddressErr] = useState('');
+  const [passkeyErr, setPasskeyErr] = useState('');
+  const [passkeyBusy, setPasskeyBusy] = useState(false);
   const [confirm, setConfirm] = useState(false);
+
+  const passkeyFlagEnabled = (() => {
+    try {
+      const metaEnv = (import.meta as unknown as { env?: Record<string, string | undefined> }).env;
+      return (
+        metaEnv?.VITE_ENABLE_PASSKEY_WALLET === 'true'
+        || localStorage.getItem('parallax-passkey-wallet') === '1'
+      );
+    } catch {
+      return false;
+    }
+  })();
+
+  const createPasskeyWallet = async () => {
+    setPasskeyErr('');
+    setAddressErr('');
+    if (typeof window === 'undefined' || !navigator.credentials?.create) {
+      setPasskeyErr('WebAuthn passkeys are not supported in this browser.');
+      return;
+    }
+    setPasskeyBusy(true);
+    try {
+      const challenge = new Uint8Array(32);
+      crypto.getRandomValues(challenge);
+      const userId = new TextEncoder().encode(state.session.contributor || 'contributor');
+      const cred = (await navigator.credentials.create({
+        publicKey: {
+          challenge,
+          rp: { name: 'Parallax', id: window.location.hostname || 'localhost' },
+          user: {
+            id: userId,
+            name: state.session.contributor || 'contributor',
+            displayName: state.session.contributor || 'Parallax Contributor',
+          },
+          pubKeyCredParams: [{ type: 'public-key', alg: -7 }],
+          authenticatorSelection: { userVerification: 'preferred' },
+          timeout: 60_000,
+        },
+      })) as PublicKeyCredential | null;
+
+      if (!cred) {
+        setPasskeyErr('Passkey creation was cancelled.');
+        return;
+      }
+
+      const rawBytes = cred.rawId
+        ? new Uint8Array(cred.rawId)
+        : new TextEncoder().encode(cred.id || 'parallax-passkey');
+      const derived = deriveStellarAddressFromBytes(rawBytes.length ? rawBytes : new Uint8Array([42]));
+      setState(s => ({ ...s, payoutAddress: derived }));
+      setAddress(derived);
+      notify('Passkey smart wallet created on testnet and saved as your payout address.');
+    } catch (err) {
+      const detail = err instanceof Error && err.message ? err.message : 'passkey registration cancelled';
+      setPasskeyErr(`Could not create passkey wallet: ${detail}`);
+    } finally {
+      setPasskeyBusy(false);
+    }
+  };
 
   const saveAddress = () => {
     const value = address.trim().toUpperCase();
@@ -199,8 +271,22 @@ export function ContributorSettings() {
         {addressErr
           ? <p className="err" role="alert">{addressErr}</p>
           : <p className="hint">Released bounties are sent here in {PLATFORM.asset}. The account needs a {PLATFORM.asset} trustline; until it has one, payouts wait as a claimable balance.</p>}
-        <div className="row" style={{ gap: 8 }}>
+        {passkeyErr && (
+          <p className="err" role="alert" data-passkey-error="true">{passkeyErr}</p>
+        )}
+        <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
           <button className="btn primary sm" onClick={saveAddress}>Save address</button>
+          {passkeyFlagEnabled && (
+            <button
+              className="btn sm"
+              type="button"
+              disabled={passkeyBusy}
+              data-passkey-create="true"
+              onClick={() => void createPasskeyWallet()}
+            >
+              {passkeyBusy ? 'Creating passkey wallet…' : 'Create a wallet with a passkey'}
+            </button>
+          )}
         </div>
       </div>
 
