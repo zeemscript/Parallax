@@ -19,6 +19,11 @@ jobs:
 
       - run: npm ci
 
+      - name: Verify contract TypeScript bindings are up to date
+        run: |
+          npm run contract:bindings
+          git diff --exit-code src/lib/escrow-client/
+
       - name: Typecheck and build
         run: npm run build
 
