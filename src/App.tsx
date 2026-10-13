@@ -1,3 +1,15 @@
+function NotFound() {
+  return (
+    <div className="public" style={{ minHeight: '60vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '3rem 1rem' }}>
+      <h1 style={{ fontSize: '3rem', marginBottom: '0.5rem' }}>404</h1>
+      <p className="muted" style={{ marginBottom: '1.5rem', fontSize: '1.1rem' }}>The page you are looking for does not exist or has been moved.</p>
+      <Link to="/explore" className="btn primary glow">
+        Back to Explore
+      </Link>
+    </div>
+  );
+}
+
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate, useParams,
@@ -381,7 +393,7 @@ function Routed() {
       <Route path="/maintainer/repo/:repoId/issues" element={<RepoShell><RepoIssues /></RepoShell>} />
       <Route path="/maintainer/repo/:repoId/settings" element={<RepoShell><RepoSettings /></RepoShell>} />
 
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<PublicShell><NotFound /></PublicShell>} />
     </Routes>
   );
 }
