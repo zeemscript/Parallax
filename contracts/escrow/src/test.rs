@@ -2,7 +2,7 @@ extern crate std;
 
 use super::*;
 use soroban_sdk::{
-    testutils::{Address as _, Events as _},
+    testutils::{Address as _, Events as _, Ledger as _},
     token::{StellarAssetClient, TokenClient},
     Address, Env, Event as _, String,
 };
@@ -19,6 +19,7 @@ struct Setup<'a> {
 fn setup() -> Setup<'static> {
     let env = Env::default();
     env.mock_all_auths();
+    env.ledger().set_timestamp(100);
 
     let issuer = Address::generate(&env);
     let sac = env.register_stellar_asset_contract_v2(issuer);
@@ -39,7 +40,7 @@ fn setup() -> Setup<'static> {
 #[test]
 fn fund_locks_tokens_in_the_contract() {
     let s = setup();
-    let id = s.escrow.fund(&s.maintainer, &s.repo, &842, &900);
+    let id = s.escrow.fund(&s.maintainer, &s.repo, &842, &900, &1_000);
 
     assert_eq!(id, 1);
     assert_eq!(s.usdc.balance(&s.maintainer), 9_100);
@@ -53,7 +54,7 @@ fn fund_locks_tokens_in_the_contract() {
 #[test]
 fn release_pays_the_assignee_and_emits_a_receipt() {
     let s = setup();
-    let id = s.escrow.fund(&s.maintainer, &s.repo, &842, &900);
+    let id = s.escrow.fund(&s.maintainer, &s.repo, &842, &900, &1_000);
     s.escrow.assign(&id, &Some(s.contributor.clone()));
     let pr = String::from_str(&s.env, "https://github.com/stellar/stellar-cli/pull/1234");
     s.escrow.release(&id, &pr);
@@ -81,19 +82,19 @@ fn release_pays_the_assignee_and_emits_a_receipt() {
 #[test]
 fn refund_returns_tokens_to_the_maintainer() {
     let s = setup();
-    let id = s.escrow.fund(&s.maintainer, &s.repo, &842, &900);
+    let id = s.escrow.fund(&s.maintainer, &s.repo, &842, &900, &1_000);
     s.escrow.refund(&id);
 
     assert_eq!(s.usdc.balance(&s.maintainer), 10_000);
     assert_eq!(s.escrow.get(&id).status, Status::Refunded);
     // The issue can be funded again once the old bounty is closed.
-    assert_eq!(s.escrow.fund(&s.maintainer, &s.repo, &842, &500), 2);
+    assert_eq!(s.escrow.fund(&s.maintainer, &s.repo, &842, &500, &1_000), 2);
 }
 
 #[test]
 fn release_requires_an_assignee() {
     let s = setup();
-    let id = s.escrow.fund(&s.maintainer, &s.repo, &842, &900);
+    let id = s.escrow.fund(&s.maintainer, &s.repo, &842, &900, &1_000);
     let pr = String::from_str(&s.env, "https://github.com/stellar/stellar-cli/pull/1");
     assert_eq!(s.escrow.try_release(&id, &pr), Err(Ok(Error::NotAssigned)));
 }
@@ -101,7 +102,7 @@ fn release_requires_an_assignee() {
 #[test]
 fn closed_bounties_cannot_be_paid_twice() {
     let s = setup();
-    let id = s.escrow.fund(&s.maintainer, &s.repo, &842, &900);
+    let id = s.escrow.fund(&s.maintainer, &s.repo, &842, &900, &1_000);
     s.escrow.assign(&id, &Some(s.contributor.clone()));
     let pr = String::from_str(&s.env, "https://github.com/stellar/stellar-cli/pull/1");
     s.escrow.release(&id, &pr);
@@ -114,9 +115,9 @@ fn closed_bounties_cannot_be_paid_twice() {
 #[test]
 fn an_issue_cannot_hold_two_open_bounties() {
     let s = setup();
-    s.escrow.fund(&s.maintainer, &s.repo, &842, &900);
+    s.escrow.fund(&s.maintainer, &s.repo, &842, &900, &1_000);
     assert_eq!(
-        s.escrow.try_fund(&s.maintainer, &s.repo, &842, &100),
+        s.escrow.try_fund(&s.maintainer, &s.repo, &842, &100, &1_000),
         Err(Ok(Error::AlreadyFunded))
     );
 }
@@ -125,11 +126,11 @@ fn an_issue_cannot_hold_two_open_bounties() {
 fn amount_must_be_positive() {
     let s = setup();
     assert_eq!(
-        s.escrow.try_fund(&s.maintainer, &s.repo, &842, &0),
+        s.escrow.try_fund(&s.maintainer, &s.repo, &842, &0, &1_000),
         Err(Ok(Error::InvalidAmount))
     );
     assert_eq!(
-        s.escrow.try_fund(&s.maintainer, &s.repo, &842, &-5),
+        s.escrow.try_fund(&s.maintainer, &s.repo, &842, &-5, &1_000),
         Err(Ok(Error::InvalidAmount))
     );
 }
@@ -143,7 +144,7 @@ fn unknown_bounty_is_not_found() {
 #[test]
 fn only_the_maintainer_can_move_funds() {
     let s = setup();
-    let id = s.escrow.fund(&s.maintainer, &s.repo, &842, &900);
+    let id = s.escrow.fund(&s.maintainer, &s.repo, &842, &900, &1_000);
     s.escrow.assign(&id, &Some(s.contributor.clone()));
 
     // Every state change after funding is authorised by the maintainer, never the assignee.
@@ -156,7 +157,7 @@ fn only_the_maintainer_can_move_funds() {
 #[should_panic]
 fn release_without_maintainer_auth_fails() {
     let s = setup();
-    let id = s.escrow.fund(&s.maintainer, &s.repo, &842, &900);
+    let id = s.escrow.fund(&s.maintainer, &s.repo, &842, &900, &1_000);
     s.escrow.assign(&id, &Some(s.contributor.clone()));
 
     s.env.set_auths(&[]);
@@ -164,4 +165,48 @@ fn release_without_maintainer_auth_fails() {
         &id,
         &String::from_str(&s.env, "https://github.com/stellar/stellar-cli/pull/1"),
     );
+}
+
+#[test]
+fn deadline_must_be_in_the_future() {
+    let s = setup();
+    assert_eq!(
+        s.escrow.try_fund(&s.maintainer, &s.repo, &842, &900, &100),
+        Err(Ok(Error::InvalidDeadline))
+    );
+    assert_eq!(
+        s.escrow.try_fund(&s.maintainer, &s.repo, &842, &900, &50),
+        Err(Ok(Error::InvalidDeadline))
+    );
+}
+
+#[test]
+fn expire_before_deadline_fails_and_after_deadline_refunds() {
+    let s = setup();
+    let id = s.escrow.fund(&s.maintainer, &s.repo, &842, &900, &1_000);
+
+    s.env.ledger().set_timestamp(999);
+    assert_eq!(s.escrow.try_expire(&id), Err(Ok(Error::InvalidDeadline)));
+
+    // Permissionless: anyone can call expire once the deadline has passed.
+    s.env.set_auths(&[]);
+    s.env.ledger().set_timestamp(1_000);
+    s.escrow.expire(&id);
+
+    assert_eq!(s.usdc.balance(&s.maintainer), 10_000);
+    assert_eq!(s.escrow.get(&id).status, Status::Refunded);
+}
+
+#[test]
+fn release_after_deadline_still_pays_when_maintainer_signs() {
+    let s = setup();
+    let id = s.escrow.fund(&s.maintainer, &s.repo, &842, &900, &1_000);
+    s.escrow.assign(&id, &Some(s.contributor.clone()));
+
+    s.env.ledger().set_timestamp(2_000);
+    let pr = String::from_str(&s.env, "https://github.com/stellar/stellar-cli/pull/1234");
+    s.escrow.release(&id, &pr);
+
+    assert_eq!(s.usdc.balance(&s.contributor), 900);
+    assert_eq!(s.escrow.get(&id).status, Status::Paid);
 }
