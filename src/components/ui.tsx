@@ -234,3 +234,132 @@ export function GithubMark({ size = 14 }: { size?: number }) {
     </svg>
   );
 }
+
+/** Allow only http(s), root-relative, or fragment links; neutralise javascript:/data:/vbscript:. */
+export function sanitizeUrl(raw: string): string | null {
+  const cleaned = raw.replace(/[\u0000-\u001F\u007F\s]+/g, '').trim();
+  if (/^https?:\/\/[^\s]+$/i.test(cleaned) || /^\/[^\s]*$/.test(cleaned) || /^#[^\s]*$/.test(cleaned)) {
+    return cleaned;
+  }
+  return null;
+}
+
+function renderInlineMarkdown(text: string): ReactNode[] {
+  const out: ReactNode[] = [];
+  const tokenRe = /(`[^`]+`)|(\[([^\]]+)\]\(((?:[^()\s]|\([^()\s]*\))+)\))|(\*\*([^*]+)\*\*)|(\*([^*]+)\*)/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let key = 0;
+
+  while ((match = tokenRe.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      out.push(text.slice(lastIndex, match.index));
+    }
+    if (match[1]) {
+      out.push(<code key={key++} className="md-code mono">{match[1].slice(1, -1)}</code>);
+    } else if (match[2]) {
+      const label = match[3];
+      const safeHref = sanitizeUrl(match[4]);
+      if (safeHref) {
+        out.push(
+          <a key={key++} href={safeHref} target="_blank" rel="noreferrer">
+            {label}
+          </a>,
+        );
+      } else {
+        out.push(<span key={key++}>{label}</span>);
+      }
+    } else if (match[5]) {
+      out.push(<strong key={key++}>{match[6]}</strong>);
+    } else if (match[7]) {
+      out.push(<em key={key++}>{match[8]}</em>);
+    }
+    lastIndex = tokenRe.lastIndex;
+  }
+
+  if (lastIndex < text.length) {
+    out.push(text.slice(lastIndex));
+  }
+  return out;
+}
+
+/**
+ * Safe Markdown renderer for issue descriptions and proposal bodies.
+ * Renders paragraphs, lists, inline code, fenced code blocks, and safe links
+ * into React nodes without ever interpreting raw HTML.
+ */
+export function Markdown({ text, className = '' }: { text: string; className?: string }) {
+  const blocks: ReactNode[] = [];
+  const segments = text.split(/(```[\s\S]*?```)/g);
+  let blockKey = 0;
+
+  for (const segment of segments) {
+    if (segment.startsWith('```') && segment.endsWith('```')) {
+      const lines = segment.slice(3, -3).replace(/^\r?\n/, '').replace(/\r?\n$/, '').split(/\r?\n/);
+      const firstLine = lines[0]?.trim() ?? '';
+      const code = /^[a-z0-9_-]+$/i.test(firstLine) && lines.length > 1
+        ? lines.slice(1).join('\n')
+        : lines.join('\n');
+      blocks.push(
+        <pre key={blockKey++} className="md-pre">
+          <code className="mono">{code}</code>
+        </pre>,
+      );
+      continue;
+    }
+
+    const lines = segment.split(/\r?\n/);
+    let paraLines: string[] = [];
+    let listItems: string[] = [];
+    let listOrdered = false;
+
+    const flushPara = () => {
+      if (paraLines.length > 0) {
+        blocks.push(<p key={blockKey++}>{renderInlineMarkdown(paraLines.join(' '))}</p>);
+        paraLines = [];
+      }
+    };
+
+    const flushList = () => {
+      if (listItems.length > 0) {
+        const Tag = listOrdered ? 'ol' : 'ul';
+        blocks.push(
+          <Tag key={blockKey++} className="md-list">
+            {listItems.map((item, idx) => <li key={idx}>{renderInlineMarkdown(item)}</li>)}
+          </Tag>,
+        );
+        listItems = [];
+      }
+    };
+
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+      if (!line) {
+        flushPara();
+        flushList();
+        continue;
+      }
+      const ulMatch = rawLine.match(/^\s*[-*]\s+(.+)$/);
+      const olMatch = rawLine.match(/^\s*\d+\.\s+(.+)$/);
+      if (ulMatch) {
+        flushPara();
+        if (listItems.length > 0 && listOrdered) flushList();
+        listOrdered = false;
+        listItems.push(ulMatch[1].trim());
+      } else if (olMatch) {
+        flushPara();
+        if (listItems.length > 0 && !listOrdered) flushList();
+        listOrdered = true;
+        listItems.push(olMatch[1].trim());
+      } else {
+        flushList();
+        paraLines.push(line);
+      }
+    }
+    flushPara();
+    flushList();
+  }
+
+  return <div className={`md-prose ${className}`.trim()}>{blocks}</div>;
+}
+

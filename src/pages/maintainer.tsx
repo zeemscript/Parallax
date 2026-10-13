@@ -10,7 +10,7 @@ import {
 } from '../lib/model';
 import { useApp } from '../lib/store';
 import { PLATFORM } from '../lib/platform';
-import { Avatar, Chip, EASE, Empty, Item, ModalHost, Page, PageHead, Stagger } from '../components/ui';
+import { Avatar, Chip, EASE, Empty, Item, Markdown, ModalHost, Page, PageHead, Stagger } from '../components/ui';
 
 const STATUS_TONE: Record<Repo['status'], string> = { Pending: 'warn', Verified: 'ok', Rejected: 'bad' };
 const LEVELS: Complexity[] = ['Trivial', 'Medium', 'High'];
@@ -352,7 +352,7 @@ export function RepoIssues() {
                       style={{ overflow: 'hidden' }}
                     >
                       <div className="issue-block-body">
-                        <p className="muted">{issue.description}</p>
+                        <Markdown className="muted" text={issue.description} />
                         {proposals.length ? proposals.map(p => (
                           <div className="proposal" key={`${p.issueId}-${p.applicant ?? 'me'}`}>
                             <div className="row" style={{ gap: 8 }}>
@@ -364,7 +364,7 @@ export function RepoIssues() {
                                 {p.status}
                               </Chip>
                             </div>
-                            <p className="muted proposal-body">{p.message}</p>
+                            <Markdown className="muted proposal-body" text={p.message} />
                             {!chosen && p.status === 'Applied' && (
                               <div className="row" style={{ gap: 6 }}>
                                 <button className="btn primary xs" onClick={() => assign(p)}>
