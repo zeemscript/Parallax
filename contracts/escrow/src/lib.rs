@@ -96,6 +96,15 @@ pub struct Refunded {
     pub amount: i128,
 }
 
+/// Emitted when an open bounty is transferred to a new maintainer.
+#[contractevent(topics = ["transferred"])]
+pub struct Transferred {
+    #[topic]
+    pub id: u64,
+    pub old_maintainer: Address,
+    pub new_maintainer: Address,
+}
+
 /// Bounties can stay open for weeks, so keep their entries alive for roughly a year.
 const BUMP_THRESHOLD: u32 = 518_400; // ~30 days of 5s ledgers
 const BUMP_TO: u32 = 6_307_200; // ~365 days
@@ -178,6 +187,25 @@ impl Escrow {
         bounty.assignee = assignee.clone();
         Self::save(&env, id, &bounty);
         Assigned { id, assignee }.publish(&env);
+        Ok(())
+    }
+
+    /// Transfer control of an open bounty to `new_maintainer`. Requires both maintainers' auth.
+    pub fn transfer_maintainer(env: Env, id: u64, new_maintainer: Address) -> Result<(), Error> {
+        let mut bounty = Self::open_bounty(&env, id)?;
+        bounty.maintainer.require_auth();
+        new_maintainer.require_auth();
+
+        let old_maintainer = bounty.maintainer;
+        bounty.maintainer = new_maintainer.clone();
+        Self::save(&env, id, &bounty);
+
+        Transferred {
+            id,
+            old_maintainer,
+            new_maintainer,
+        }
+        .publish(&env);
         Ok(())
     }
 
