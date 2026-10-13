@@ -153,17 +153,89 @@ export function ContributorSettings() {
   const [name, setName] = useState(state.session.contributor ?? '');
   const [address, setAddress] = useState(state.payoutAddress ?? '');
   const [addressErr, setAddressErr] = useState('');
+  const [accountStatus, setAccountStatus] = useState<
+    | { kind: 'idle' }
+    | { kind: 'checking' }
+    | { kind: 'not_found'; label: string; tone: 'warn'; message: string }
+    | { kind: 'no_trustline'; label: string; tone: 'warn'; message: string }
+    | { kind: 'ready'; label: string; tone: 'success'; message: string }
+    | { kind: 'error'; label: string; tone: 'danger'; message: string }
+  >({ kind: 'idle' });
   const [confirm, setConfirm] = useState(false);
+
+  const checkHorizonAccount = async (value: string) => {
+    setAccountStatus({ kind: 'checking' });
+    const horizonBase = (PLATFORM.network as string) === 'mainnet' || (PLATFORM.network as string) === 'public'
+      ? 'https://horizon.stellar.org'
+      : 'https://horizon-testnet.stellar.org';
+    try {
+      const res = await fetch(`${horizonBase}/accounts/${encodeURIComponent(value)}`, {
+        headers: { Accept: 'application/json' },
+      });
+      if (res.status === 404) {
+        setAccountStatus({
+          kind: 'not_found',
+          label: 'Account not found',
+          tone: 'warn',
+          message: `Fund this address with XLM on ${PLATFORM.chain} ${PLATFORM.network} to activate the account before receiving payouts.`,
+        });
+        return;
+      }
+      if (!res.ok) {
+        setAccountStatus({
+          kind: 'error',
+          label: 'Check failed',
+          tone: 'danger',
+          message: `Horizon returned HTTP ${res.status} while checking this account; your address is saved and you can click Save address to check again.`,
+        });
+        return;
+      }
+      const data = (await res.json()) as {
+        balances?: Array<{ asset_type?: string; asset_code?: string }>;
+      };
+      const balances = Array.isArray(data?.balances) ? data.balances : [];
+      const hasAssetTrustline = balances.some(b => b.asset_code === PLATFORM.asset);
+      if (!hasAssetTrustline) {
+        setAccountStatus({
+          kind: 'no_trustline',
+          label: `No ${PLATFORM.asset} trustline`,
+          tone: 'warn',
+          message: `Add a ${PLATFORM.asset} trustline in your wallet so released bounties settle directly instead of waiting as a claimable balance.`,
+        });
+        return;
+      }
+      setAccountStatus({
+        kind: 'ready',
+        label: 'Ready to receive',
+        tone: 'success',
+        message: `This account is active on ${PLATFORM.chain} ${PLATFORM.network} with a ${PLATFORM.asset} trustline and will receive payouts directly.`,
+      });
+    } catch (err) {
+      const detail = err instanceof Error && err.message ? err.message : 'network error';
+      setAccountStatus({
+        kind: 'error',
+        label: 'Check failed',
+        tone: 'danger',
+        message: `Could not reach ${PLATFORM.chain} Horizon (${detail}); your address is saved and you can click Save address to retry.`,
+      });
+    }
+  };
 
   const saveAddress = () => {
     const value = address.trim().toUpperCase();
     if (value && !isStellarAddress(value)) {
       setAddressErr(`Enter a ${PLATFORM.chain} public key: G followed by 55 letters and digits.`);
+      setAccountStatus({ kind: 'idle' });
       return;
     }
     setState(s => ({ ...s, payoutAddress: value || null }));
     setAddress(value);
     notify(value ? 'Payout address saved.' : 'Payout address removed.');
+    if (!value) {
+      setAccountStatus({ kind: 'idle' });
+      return;
+    }
+    void checkHorizonAccount(value);
   };
 
   return (
@@ -199,6 +271,25 @@ export function ContributorSettings() {
         {addressErr
           ? <p className="err" role="alert">{addressErr}</p>
           : <p className="hint">Released bounties are sent here in {PLATFORM.asset}. The account needs a {PLATFORM.asset} trustline; until it has one, payouts wait as a claimable balance.</p>}
+        {accountStatus.kind === 'checking' && (
+          <p className="hint" role="status" data-account-status="checking">
+            Checking account on {PLATFORM.chain} {PLATFORM.network}…
+          </p>
+        )}
+        {(accountStatus.kind === 'not_found'
+          || accountStatus.kind === 'no_trustline'
+          || accountStatus.kind === 'ready'
+          || accountStatus.kind === 'error') && (
+          <div
+            className="row"
+            role={accountStatus.kind === 'error' ? 'alert' : 'status'}
+            data-account-status={accountStatus.kind}
+            style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}
+          >
+            <Chip tone={accountStatus.tone}>{accountStatus.label}</Chip>
+            <span className={accountStatus.kind === 'error' ? 'err' : 'hint'}>{accountStatus.message}</span>
+          </div>
+        )}
         <div className="row" style={{ gap: 8 }}>
           <button className="btn primary sm" onClick={saveAddress}>Save address</button>
         </div>
