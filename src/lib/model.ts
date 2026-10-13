@@ -31,6 +31,8 @@ export interface Issue {
   complexity: Complexity;
   /** Fixed bounty in the platform asset, escrowed when the issue is posted. */
   bounty: number;
+  /** On-chain escrow bounty id when funded via the Soroban contract. */
+  bountyId?: number;
   created: string;
 }
 
@@ -41,6 +43,8 @@ export interface Application {
   pr?: string;
   /** Sample contributor. Absent means the signed-in contributor. */
   applicant?: string;
+  /** Explicit payout address for this applicant, if known. */
+  payoutAddress?: string | null;
 }
 
 /** Record of a released bounty. On-chain once the escrow contract lands; local in the preview. */
@@ -108,6 +112,19 @@ export const repoName = (repo: Repo) => `${repo.org}/${repo.name}`;
 
 export const isOwnApplication = (a: Application) => !a.applicant;
 export const applicantName = (a: Application, profile: string) => a.applicant ?? profile;
+
+const SEEDED_CONTRIBUTOR_ADDRESSES: Record<string, string> = {
+  'nadia.dev': 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
+  'kwame-o': 'GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H',
+  'lucia-m': 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN',
+  'tobi.k': 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN7',
+};
+
+export function contributorPayoutAddress(a: Application, payoutAddress: string | null): string | null {
+  if (a.payoutAddress !== undefined) return a.payoutAddress;
+  if (isOwnApplication(a)) return payoutAddress;
+  return SEEDED_CONTRIBUTOR_ADDRESSES[a.applicant ?? ''] ?? null;
+}
 
 export const statusTone = (status: ApplicationStatus) =>
   status === 'Paid' ? 'ok' : status === 'Rejected' ? 'bad' : status === 'Applied' ? '' : 'warn';
