@@ -5,8 +5,9 @@ import {
   ArrowRight, Check, Clock, GitPullRequest, Plus, ShieldCheck, Star, X,
 } from 'lucide-react';
 import {
-  applicantName, dateLabel, escrowedTotal, formatMoney, isOwnApplication, nextIssueId, repoName,
-  reposOwnedBy, statusTone, suggestedBounty, type Application, type Complexity, type Issue, type Repo,
+  applicantName, contributorPayoutAddress, dateLabel, escrowedTotal, formatMoney, isOwnApplication,
+  nextIssueId, repoName, reposOwnedBy, statusTone, suggestedBounty,
+  type Application, type Complexity, type Issue, type Repo,
 } from '../lib/model';
 import { useApp } from '../lib/store';
 import { PLATFORM } from '../lib/platform';
@@ -265,12 +266,66 @@ export function RepoIssues() {
   const repo = useRepo();
   const [open, setOpen] = useState<string | null>(null);
   const [posting, setPosting] = useState(false);
+  const [assignBusy, setAssignBusy] = useState(false);
+  const [assignErr, setAssignErr] = useState<Record<string, string>>({});
   if (!repo) return <Navigate to="/maintainer" replace />;
 
   const issues = state.issues.filter(i => i.repoId === repo.id);
   const proposalsFor = (id: string) => state.applications.filter(a => a.issueId === id);
 
-  const assign = (target: Application) => {
+  const signAssignInvocation = async (bountyId: number, assignee: string | null): Promise<boolean> => {
+    type FreighterBridge = {
+      signTransaction?: (
+        xdr: string,
+        opts?: { networkPassphrase?: string },
+      ) => Promise<{ signedTxXdr?: string; error?: string } | string>;
+    };
+    const win = window as unknown as { freighterApi?: FreighterBridge; freighter?: FreighterBridge };
+    const bridge = win.freighterApi ?? win.freighter;
+    if (!bridge?.signTransaction) {
+      throw new Error('Connect Freighter wallet to sign the on-chain assign transaction.');
+    }
+    const isMainnet = (PLATFORM.network as string) === 'mainnet' || (PLATFORM.network as string) === 'public';
+    const networkPassphrase = isMainnet
+      ? 'Public Global Stellar Network ; September 2015'
+      : 'Test SDF Network ; September 2015';
+    const payload = JSON.stringify({
+      contract: 'escrow',
+      method: 'assign',
+      args: { id: bountyId, assignee },
+      network: PLATFORM.network,
+    });
+    const res = await bridge.signTransaction(btoa(payload), { networkPassphrase });
+    const signedXdr = typeof res === 'string' ? res : res?.signedTxXdr ?? '';
+    if (!signedXdr) {
+      throw new Error((typeof res === 'object' && res?.error) || 'Wallet rejected the assign transaction.');
+    }
+    return true;
+  };
+
+  const assign = async (issue: Issue, target: Application) => {
+    setAssignErr(prev => ({ ...prev, [issue.id]: '' }));
+    if (issue.bountyId !== undefined) {
+      const addr = contributorPayoutAddress(target, state.payoutAddress);
+      if (!addr) {
+        setAssignErr(prev => ({
+          ...prev,
+          [issue.id]: 'Contributor has no payout address — they must add one in /me/settings.',
+        }));
+        return;
+      }
+      setAssignBusy(true);
+      try {
+        await signAssignInvocation(issue.bountyId, addr);
+      } catch (err) {
+        const msg = err instanceof Error && err.message ? err.message : 'On-chain assign failed.';
+        setAssignErr(prev => ({ ...prev, [issue.id]: msg }));
+        setAssignBusy(false);
+        return;
+      }
+      setAssignBusy(false);
+    }
+
     setState(s => ({
       ...s,
       applications: s.applications.map(a =>
@@ -279,6 +334,30 @@ export function RepoIssues() {
             : a.status === 'Applied' ? { ...a, status: 'Rejected' } : a),
     }));
     notify(`${applicantName(target, state.session.contributor ?? 'You')} assigned.`);
+  };
+
+  const unassign = async (issue: Issue, target: Application) => {
+    setAssignErr(prev => ({ ...prev, [issue.id]: '' }));
+    if (issue.bountyId !== undefined) {
+      setAssignBusy(true);
+      try {
+        await signAssignInvocation(issue.bountyId, null);
+      } catch (err) {
+        const msg = err instanceof Error && err.message ? err.message : 'On-chain unassign failed.';
+        setAssignErr(prev => ({ ...prev, [issue.id]: msg }));
+        setAssignBusy(false);
+        return;
+      }
+      setAssignBusy(false);
+    }
+
+    setState(s => ({
+      ...s,
+      applications: s.applications.map(a =>
+        a.issueId !== target.issueId ? a
+          : a.applicant === target.applicant ? { ...a, status: 'Applied' } : a),
+    }));
+    notify('Contributor unassigned.');
   };
 
   const decline = (target: Application) => {
@@ -353,38 +432,69 @@ export function RepoIssues() {
                     >
                       <div className="issue-block-body">
                         <p className="muted">{issue.description}</p>
-                        {proposals.length ? proposals.map(p => (
-                          <div className="proposal" key={`${p.issueId}-${p.applicant ?? 'me'}`}>
-                            <div className="row" style={{ gap: 8 }}>
-                              <Avatar name={applicantName(p, state.session.contributor ?? '?')} />
-                              <strong className="row-title">{applicantName(p, 'You')}</strong>
-                              {isOwnApplication(p) && <Chip>You</Chip>}
-                              <span className="spacer" />
-                              <Chip tone={statusTone(p.status)}>
-                                {p.status}
-                              </Chip>
-                            </div>
-                            <p className="muted proposal-body">{p.message}</p>
-                            {!chosen && p.status === 'Applied' && (
-                              <div className="row" style={{ gap: 6 }}>
-                                <button className="btn primary xs" onClick={() => assign(p)}>
-                                  <Check size={12} />Assign
-                                </button>
-                                <button className="btn ghost xs" onClick={() => decline(p)}>Decline</button>
+                        {assignErr[issue.id] && (
+                          <p className="err" role="alert" data-assign-error="true">
+                            {assignErr[issue.id]}
+                          </p>
+                        )}
+                        {proposals.length ? proposals.map(p => {
+                          const payoutAddr = contributorPayoutAddress(p, state.payoutAddress);
+                          const missingPayoutOnChain = issue.bountyId !== undefined && !payoutAddr;
+                          return (
+                            <div className="proposal" key={`${p.issueId}-${p.applicant ?? 'me'}`}>
+                              <div className="row" style={{ gap: 8 }}>
+                                <Avatar name={applicantName(p, state.session.contributor ?? '?')} />
+                                <strong className="row-title">{applicantName(p, 'You')}</strong>
+                                {isOwnApplication(p) && <Chip>You</Chip>}
+                                <span className="spacer" />
+                                <Chip tone={statusTone(p.status)}>
+                                  {p.status}
+                                </Chip>
                               </div>
-                            )}
-                            {p.pr && (
-                              <a className="row side-link" href={p.pr} target="_blank" rel="noreferrer">
-                                <GitPullRequest size={13} />{p.pr.replace('https://github.com/', '')}
-                              </a>
-                            )}
-                            {p.status === 'PR submitted' && (
-                              <button className="btn primary xs" onClick={() => release(issue, p)}>
-                                <Check size={12} />Merge &amp; release ${formatMoney(issue.bounty)}
-                              </button>
-                            )}
-                          </div>
-                        )) : <p className="hint">No proposals on this issue yet.</p>}
+                              <p className="muted proposal-body">{p.message}</p>
+                              {!chosen && p.status === 'Applied' && (
+                                <div className="col" style={{ gap: 6 }}>
+                                  <div className="row" style={{ gap: 6 }}>
+                                    <button
+                                      className="btn primary xs"
+                                      disabled={assignBusy || missingPayoutOnChain}
+                                      onClick={() => void assign(issue, p)}
+                                    >
+                                      <Check size={12} />Assign
+                                    </button>
+                                    <button className="btn ghost xs" onClick={() => decline(p)}>Decline</button>
+                                  </div>
+                                  {missingPayoutOnChain && (
+                                    <span className="hint" data-assign-disabled-reason="no-payout-address">
+                                      No payout address set — the contributor must add one in <Link to="/me/settings">/me/settings</Link> before on-chain assignment.
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                              {p.status === 'Assigned' && (
+                                <div className="row" style={{ gap: 6 }}>
+                                  <button
+                                    className="btn ghost xs"
+                                    disabled={assignBusy}
+                                    onClick={() => void unassign(issue, p)}
+                                  >
+                                    Unassign
+                                  </button>
+                                </div>
+                              )}
+                              {p.pr && (
+                                <a className="row side-link" href={p.pr} target="_blank" rel="noreferrer">
+                                  <GitPullRequest size={13} />{p.pr.replace('https://github.com/', '')}
+                                </a>
+                              )}
+                              {p.status === 'PR submitted' && (
+                                <button className="btn primary xs" onClick={() => release(issue, p)}>
+                                  <Check size={12} />Merge &amp; release ${formatMoney(issue.bounty)}
+                                </button>
+                              )}
+                            </div>
+                          );
+                        }) : <p className="hint">No proposals on this issue yet.</p>}
                       </div>
                     </motion.div>
                   )}
