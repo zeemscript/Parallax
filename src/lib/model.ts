@@ -31,6 +31,8 @@ export interface Issue {
   complexity: Complexity;
   /** Fixed bounty in the platform asset, escrowed when the issue is posted. */
   bounty: number;
+  /** On-chain escrow bounty id when funded via the Soroban contract. */
+  bountyId?: number;
   created: string;
 }
 
@@ -54,6 +56,18 @@ export interface Receipt {
   amount: number;
   pr: string;
   paidAt: string;
+  /** On-chain Stellar transaction hash when released via the escrow contract. */
+  txHash?: string;
+}
+
+export function formatReleaseError(raw: string): string {
+  if (/NotAssigned|Contract,\s*#?4\b/i.test(raw)) {
+    return 'This bounty has no assignee recorded on-chain yet — assign the contributor on-chain before releasing the payout.';
+  }
+  if (/NotOpen|Contract,\s*#?3\b/i.test(raw)) {
+    return 'This bounty is no longer open on-chain (it was already paid out or refunded).';
+  }
+  return raw;
 }
 
 /** Contributor and maintainer are separate sessions — signing into one never grants the other. */

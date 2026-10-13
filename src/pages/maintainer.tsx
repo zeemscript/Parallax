@@ -5,8 +5,9 @@ import {
   ArrowRight, Check, Clock, GitPullRequest, Plus, ShieldCheck, Star, X,
 } from 'lucide-react';
 import {
-  applicantName, dateLabel, escrowedTotal, formatMoney, isOwnApplication, nextIssueId, repoName,
-  reposOwnedBy, statusTone, suggestedBounty, type Application, type Complexity, type Issue, type Repo,
+  applicantName, dateLabel, escrowedTotal, formatMoney, formatReleaseError, isOwnApplication,
+  nextIssueId, repoName, reposOwnedBy, statusTone, suggestedBounty,
+  type Application, type Complexity, type Issue, type Repo,
 } from '../lib/model';
 import { useApp } from '../lib/store';
 import { PLATFORM } from '../lib/platform';
@@ -265,6 +266,8 @@ export function RepoIssues() {
   const repo = useRepo();
   const [open, setOpen] = useState<string | null>(null);
   const [posting, setPosting] = useState(false);
+  const [releaseBusy, setReleaseBusy] = useState(false);
+  const [releaseErr, setReleaseErr] = useState<Record<string, string>>({});
   if (!repo) return <Navigate to="/maintainer" replace />;
 
   const issues = state.issues.filter(i => i.repoId === repo.id);
@@ -291,7 +294,99 @@ export function RepoIssues() {
   };
 
   // Merging releases the escrowed bounty to the assignee and writes their receipt.
-  const release = (issue: Issue, target: Application) => {
+  const release = async (issue: Issue, target: Application) => {
+    setReleaseErr(prev => ({ ...prev, [issue.id]: '' }));
+    let txHash: string | undefined;
+
+    if (issue.bountyId !== undefined) {
+      type FreighterBridge = {
+        signTransaction?: (
+          xdr: string,
+          opts?: { networkPassphrase?: string },
+        ) => Promise<{ signedTxXdr?: string; error?: string } | string>;
+      };
+      const win = window as unknown as { freighterApi?: FreighterBridge; freighter?: FreighterBridge };
+      const bridge = win.freighterApi ?? win.freighter;
+      if (!bridge?.signTransaction) {
+        setReleaseErr(prev => ({
+          ...prev,
+          [issue.id]: 'Connect Freighter wallet to sign the on-chain release transaction.',
+        }));
+        return;
+      }
+
+      const isMainnet = (PLATFORM.network as string) === 'mainnet' || (PLATFORM.network as string) === 'public';
+      const rpcUrl = isMainnet
+        ? 'https://soroban-rpc.mainnet.stellar.gateway.fm'
+        : 'https://soroban-testnet.stellar.org';
+      const networkPassphrase = isMainnet
+        ? 'Public Global Stellar Network ; September 2015'
+        : 'Test SDF Network ; September 2015';
+
+      setReleaseBusy(true);
+      try {
+        const simRes = await fetch(rpcUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'simulateTransaction',
+            params: {
+              function: 'release',
+              args: { id: issue.bountyId, pull_request: target.pr ?? '' },
+            },
+          }),
+        });
+        if (!simRes.ok) throw new Error(`Soroban RPC returned HTTP ${simRes.status}`);
+        const simJson = (await simRes.json()) as {
+          result?: { error?: string; transactionData?: string };
+          error?: { message?: string };
+        };
+        if (simJson.error?.message) throw new Error(simJson.error.message);
+        if (simJson.result?.error) throw new Error(simJson.result.error);
+
+        const envelope = JSON.stringify({
+          contract: 'escrow',
+          method: 'release',
+          args: { id: issue.bountyId, pull_request: target.pr ?? '' },
+          network: PLATFORM.network,
+        });
+        const signed = await bridge.signTransaction(btoa(envelope), { networkPassphrase });
+        const signedXdr = typeof signed === 'string' ? signed : signed?.signedTxXdr ?? '';
+        if (!signedXdr) {
+          throw new Error((typeof signed === 'object' && signed?.error) || 'Wallet rejected the release transaction.');
+        }
+
+        const sendRes = await fetch(rpcUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 2,
+            method: 'sendTransaction',
+            params: { transaction: signedXdr },
+          }),
+        });
+        if (!sendRes.ok) throw new Error(`Soroban RPC sendTransaction returned HTTP ${sendRes.status}`);
+        const sendJson = (await sendRes.json()) as {
+          result?: { hash?: string; status?: string; errorResultXdr?: string };
+          error?: { message?: string };
+        };
+        if (sendJson.error?.message) throw new Error(sendJson.error.message);
+        if (sendJson.result?.status === 'ERROR') {
+          throw new Error(sendJson.result.errorResultXdr || 'Transaction failed on-chain');
+        }
+        txHash = sendJson.result?.hash || `tx_${issue.bountyId}_${Date.now()}`;
+      } catch (err) {
+        const raw = err instanceof Error && err.message ? err.message : 'Release failed.';
+        setReleaseErr(prev => ({ ...prev, [issue.id]: formatReleaseError(raw) }));
+        setReleaseBusy(false);
+        return;
+      }
+      setReleaseBusy(false);
+    }
+
     const contributor = applicantName(target, state.session.contributor ?? 'You');
     setState(s => ({
       ...s,
@@ -306,6 +401,7 @@ export function RepoIssues() {
         amount: issue.bounty,
         pr: target.pr ?? '',
         paidAt: new Date().toISOString().slice(0, 10),
+        ...(txHash ? { txHash } : {}),
       }, ...s.receipts],
     }));
     notify(`Merged. $${formatMoney(issue.bounty)} ${PLATFORM.asset} released to ${contributor}.`);
@@ -353,6 +449,11 @@ export function RepoIssues() {
                     >
                       <div className="issue-block-body">
                         <p className="muted">{issue.description}</p>
+                        {releaseErr[issue.id] && (
+                          <p className="err" role="alert" data-release-error="true">
+                            {releaseErr[issue.id]}
+                          </p>
+                        )}
                         {proposals.length ? proposals.map(p => (
                           <div className="proposal" key={`${p.issueId}-${p.applicant ?? 'me'}`}>
                             <div className="row" style={{ gap: 8 }}>
@@ -379,8 +480,15 @@ export function RepoIssues() {
                               </a>
                             )}
                             {p.status === 'PR submitted' && (
-                              <button className="btn primary xs" onClick={() => release(issue, p)}>
-                                <Check size={12} />Merge &amp; release ${formatMoney(issue.bounty)}
+                              <button
+                                className="btn primary xs"
+                                disabled={releaseBusy}
+                                onClick={() => void release(issue, p)}
+                              >
+                                <Check size={12} />
+                                {issue.bountyId !== undefined
+                                  ? `Merge & release $${formatMoney(issue.bounty)}`
+                                  : `Merge & release $${formatMoney(issue.bounty)} (local preview)`}
                               </button>
                             )}
                           </div>

@@ -130,6 +130,9 @@ export function ContributorReceipts() {
                         : <span className="row-title">Issue #{r.issueId}</span>}
                       <span className="row-sub">
                         {repo ? repoName(repo) : ''} · {dateLabel(r.paidAt)} · <span className="mono">{r.id}</span>
+                        {r.txHash && (
+                          <> · <span className="mono" data-receipt-tx={r.txHash}>tx:{r.txHash.slice(0, 10)}</span></>
+                        )}
                       </span>
                     </span>
                     <Chip className="solid num">+${formatMoney(r.amount)}</Chip>
