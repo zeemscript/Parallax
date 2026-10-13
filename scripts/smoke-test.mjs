@@ -213,6 +213,60 @@ try {
   await page.getByRole('button', { name: 'Submit for review' }).click();
   await settle();
 
+  await page.evaluate((key) => {
+    const s = JSON.parse(localStorage.getItem(key));
+    s.issues = s.issues.map(i => (i.id === '512' ? { ...i, bountyId: 1 } : i));
+    localStorage.setItem(key, JSON.stringify(s));
+  }, storageKey);
+  await go('/maintainer/repo/soroban-sdk/settings');
+  await page.getByRole('button', { name: 'Disconnect', exact: true }).click();
+  await settle();
+  assert.equal(await page.locator('[data-disconnect-open-bounties="true"]').count(), 1, 'disconnect dialog lists open bounties');
+  assert.match(await page.locator('[data-disconnect-total="true"]').innerText(), /\$450/);
+  assert.equal(await page.locator('[data-pr-submitted-warning="true"]').count(), 1, 'warns when an open bounty has a PR submitted');
+  await page.evaluate(() => {
+    window.freighterApi = {
+      signTransaction: async () => { throw new Error('User declined refund'); },
+    };
+  });
+  await page.getByRole('button', { name: 'Disconnect repository' }).click();
+  await settle();
+  assert.equal(await page.locator('[data-refund-error="true"]').count(), 1, 'failed refund keeps repository and lists open bounties');
+  assert.match(await page.locator('[data-refund-error="true"]').innerText(), /#512/);
+
+  await page.evaluate(({ key, rId }) => {
+    const s = JSON.parse(localStorage.getItem(key));
+    s.issues.push({
+      id: '999',
+      repoId: rId,
+      title: 'Test on-chain refund issue',
+      description: 'Refunded on disconnect.',
+      criteria: ['Done'],
+      complexity: 'Trivial',
+      bounty: 150,
+      bountyId: 99,
+      created: '2026-10-03',
+    });
+    localStorage.setItem(key, JSON.stringify(s));
+  }, { key: storageKey, rId: repoId });
+  await go(`/maintainer/repo/${repoId}/settings`);
+  await page.evaluate(() => {
+    window.__refundCalls = [];
+    window.freighterApi = {
+      signTransaction: async xdr => {
+        window.__refundCalls.push(JSON.parse(atob(xdr)));
+        return { signedTxXdr: `signed:${xdr}` };
+      },
+    };
+  });
+  await page.getByRole('button', { name: 'Disconnect', exact: true }).click();
+  await settle();
+  await page.getByRole('button', { name: 'Disconnect repository' }).click();
+  await page.waitForURL('**/maintainer');
+  const refundCalls = await page.evaluate(() => window.__refundCalls);
+  assert.equal(refundCalls.length, 1, 'calls refund(id) through Freighter before removing repository');
+  assert.equal(refundCalls[0].args.id, 99);
+
   await go('/maintainer/repo/soroban-sdk/issues');
   await page.getByRole('button', { name: /Add a test helper for asserting emitted events/ }).click();
   await settle();

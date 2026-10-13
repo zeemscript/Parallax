@@ -31,6 +31,8 @@ export interface Issue {
   complexity: Complexity;
   /** Fixed bounty in the platform asset, escrowed when the issue is posted. */
   bounty: number;
+  /** On-chain escrow bounty id when funded via the Soroban contract. */
+  bountyId?: number;
   created: string;
 }
 

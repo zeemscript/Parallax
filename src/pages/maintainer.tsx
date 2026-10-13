@@ -5,7 +5,7 @@ import {
   ArrowRight, Check, Clock, GitPullRequest, Plus, ShieldCheck, Star, X,
 } from 'lucide-react';
 import {
-  applicantName, dateLabel, escrowedTotal, formatMoney, isOwnApplication, nextIssueId, repoName,
+  applicantName, dateLabel, escrowedTotal, formatMoney, isOwnApplication, isPaid, nextIssueId, repoName,
   reposOwnedBy, statusTone, suggestedBounty, type Application, type Complexity, type Issue, type Repo,
 } from '../lib/model';
 import { useApp } from '../lib/store';
@@ -410,11 +410,93 @@ export function RepoIssues() {
 }
 
 export function RepoSettings() {
-  const { setState, notify } = useApp();
+  const { state, setState, notify } = useApp();
   const navigate = useNavigate();
   const repo = useRepo();
   const [confirm, setConfirm] = useState(false);
+  const [refundBusy, setRefundBusy] = useState(false);
+  const [refundErr, setRefundErr] = useState('');
   if (!repo) return <Navigate to="/maintainer" replace />;
+
+  const openBounties = state.issues.filter(i => i.repoId === repo.id && !isPaid(i.id, state.applications));
+  const openTotal = openBounties.reduce((sum, i) => sum + i.bounty, 0);
+  const prSubmittedIssues = openBounties.filter(i =>
+    state.applications.some(a => a.issueId === i.id && a.status === 'PR submitted'),
+  );
+
+  const disconnectAndRefund = async () => {
+    setRefundErr('');
+    const onChainBounties = openBounties.filter(i => i.bountyId !== undefined);
+    if (onChainBounties.length > 0) {
+      type FreighterBridge = {
+        signTransaction?: (
+          xdr: string,
+          opts?: { networkPassphrase?: string },
+        ) => Promise<{ signedTxXdr?: string; error?: string } | string>;
+      };
+      const win = window as unknown as { freighterApi?: FreighterBridge; freighter?: FreighterBridge };
+      const bridge = win.freighterApi ?? win.freighter;
+      if (!bridge?.signTransaction) {
+        setRefundErr(
+          `Connect Freighter wallet to refund ${onChainBounties.length} open on-chain ${onChainBounties.length === 1 ? 'bounty' : 'bounties'} (${onChainBounties.map(i => `#${i.id}`).join(', ')}).`,
+        );
+        return;
+      }
+
+      const isMainnet = (PLATFORM.network as string) === 'mainnet' || (PLATFORM.network as string) === 'public';
+      const networkPassphrase = isMainnet
+        ? 'Public Global Stellar Network ; September 2015'
+        : 'Test SDF Network ; September 2015';
+
+      setRefundBusy(true);
+      const refundedIssueIds = new Set<string>();
+      for (const issue of onChainBounties) {
+        try {
+          const payload = JSON.stringify({
+            contract: 'escrow',
+            method: 'refund',
+            args: { id: issue.bountyId },
+            network: PLATFORM.network,
+          });
+          const res = await bridge.signTransaction(btoa(payload), { networkPassphrase });
+          const signedXdr = typeof res === 'string' ? res : res?.signedTxXdr ?? '';
+          if (!signedXdr) {
+            throw new Error((typeof res === 'object' && res?.error) || `Refund rejected for #${issue.id}`);
+          }
+          refundedIssueIds.add(issue.id);
+        } catch (err) {
+          if (refundedIssueIds.size > 0) {
+            setState(s => ({
+              ...s,
+              issues: s.issues.filter(i => !refundedIssueIds.has(i.id)),
+              applications: s.applications.filter(a => !refundedIssueIds.has(a.issueId)),
+            }));
+          }
+          const stillOpen = onChainBounties.filter(i => !refundedIssueIds.has(i.id));
+          const detail = err instanceof Error && err.message ? err.message : 'signing failed';
+          setRefundErr(
+            `Refund failed (${detail}). Repository was not removed; still open on-chain: ${stillOpen.map(i => `#${i.id}`).join(', ')}.`,
+          );
+          setRefundBusy(false);
+          return;
+        }
+      }
+      setRefundBusy(false);
+    }
+
+    setState(s => {
+      const gone = new Set(s.issues.filter(i => i.repoId === repo.id).map(i => i.id));
+      return {
+        ...s,
+        repos: s.repos.filter(r => r.id !== repo.id),
+        issues: s.issues.filter(i => !gone.has(i.id)),
+        applications: s.applications.filter(a => !gone.has(a.issueId)),
+      };
+    });
+    setConfirm(false);
+    notify('Repository disconnected.');
+    navigate('/maintainer');
+  };
 
   return (
     <Page>
@@ -435,26 +517,41 @@ export function RepoSettings() {
             <span className="row-sub">Removes the repository, its unpaid issues, and closes its dashboard.</span>
           </span>
           <span className="spacer" />
-          <button className="btn sm danger" onClick={() => setConfirm(true)}>Disconnect</button>
+          <button className="btn sm danger" onClick={() => { setRefundErr(''); setConfirm(true); }}>Disconnect</button>
         </div>
       </div>
 
       <ModalHost open={confirm} title="Disconnect this repository?" onClose={() => setConfirm(false)}>
         <p>{repoName(repo)} will be removed, its unpaid bounties returned from escrow, and its dashboard closed.</p>
-        <button className="btn primary block" onClick={() => {
-          setState(s => {
-            const gone = new Set(s.issues.filter(i => i.repoId === repo.id).map(i => i.id));
-            return {
-              ...s,
-              repos: s.repos.filter(r => r.id !== repo.id),
-              issues: s.issues.filter(i => !gone.has(i.id)),
-              applications: s.applications.filter(a => !gone.has(a.issueId)),
-            };
-          });
-          setConfirm(false);
-          notify('Repository disconnected.');
-          navigate('/maintainer');
-        }}>Disconnect repository</button>
+        {openBounties.length > 0 && (
+          <div className="col" style={{ gap: 8 }} data-disconnect-open-bounties="true">
+            <div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+              <span className="label">Open bounties ({openBounties.length})</span>
+              <strong className="num" data-disconnect-total="true">${formatMoney(openTotal)} {PLATFORM.asset}</strong>
+            </div>
+            <div className="col" style={{ gap: 4 }}>
+              {openBounties.map(issue => (
+                <div key={issue.id} className="row" style={{ justifyContent: 'space-between', gap: 8 }} data-disconnect-bounty={issue.id}>
+                  <span className="mono dim">#{issue.id} {issue.title}</span>
+                  <span className="num">${formatMoney(issue.bounty)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {prSubmittedIssues.length > 0 && (
+          <p className="err" role="alert" data-pr-submitted-warning="true">
+            Warning: {prSubmittedIssues.map(i => `#${i.id}`).join(', ')} {prSubmittedIssues.length === 1 ? 'has an assignee with a pull request submitted' : 'have assignees with pull requests submitted'} — refunding will cancel their escrowed payout.
+          </p>
+        )}
+        {refundErr && (
+          <p className="err" role="alert" data-refund-error="true">
+            {refundErr}
+          </p>
+        )}
+        <button className="btn primary block" disabled={refundBusy} onClick={() => void disconnectAndRefund()}>
+          {refundBusy ? 'Refunding open bounties…' : 'Disconnect repository'}
+        </button>
       </ModalHost>
     </Page>
   );
