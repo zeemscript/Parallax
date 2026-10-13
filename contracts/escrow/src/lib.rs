@@ -8,7 +8,8 @@
 #![no_std]
 
 use soroban_sdk::{
-    contract, contracterror, contractevent, contractimpl, contracttype, token, Address, Env, String,
+    contract, contracterror, contractevent, contractimpl, contracttype, token, Address, BytesN,
+    Env, String,
 };
 
 #[contracttype]
@@ -50,6 +51,8 @@ pub enum Error {
 enum Key {
     /// Address of the token every bounty is paid in (USDC's Stellar Asset Contract).
     Token,
+    /// Contract administrator allowed to upgrade wasm code or rotate admin.
+    Admin,
     /// Last bounty id handed out.
     Counter,
     Bounty(u64),
@@ -105,14 +108,34 @@ pub struct Escrow;
 
 #[contractimpl]
 impl Escrow {
-    /// Set the token bounties are paid in. Runs once, at deploy.
-    pub fn __constructor(env: Env, token: Address) {
+    /// Set the token bounties are paid in and the upgrade admin. Runs once, at deploy.
+    pub fn __constructor(env: Env, token: Address, admin: Address) {
         env.storage().instance().set(&Key::Token, &token);
+        env.storage().instance().set(&Key::Admin, &admin);
         env.storage().instance().set(&Key::Counter, &0u64);
     }
 
     pub fn token(env: Env) -> Address {
         env.storage().instance().get(&Key::Token).unwrap()
+    }
+
+    pub fn admin(env: Env) -> Address {
+        env.storage().instance().get(&Key::Admin).unwrap()
+    }
+
+    /// Rotate the upgrade administrator. Requires the current admin's authorization.
+    pub fn set_admin(env: Env, new_admin: Address) {
+        let current: Address = Self::admin(env.clone());
+        current.require_auth();
+        env.storage().instance().set(&Key::Admin, &new_admin);
+        env.storage().instance().extend_ttl(BUMP_THRESHOLD, BUMP_TO);
+    }
+
+    /// Upgrade the contract's Wasm code in-place. Requires the admin's authorization.
+    pub fn upgrade(env: Env, new_wasm_hash: BytesN<32>) {
+        let current: Address = Self::admin(env.clone());
+        current.require_auth();
+        env.deployer().update_current_contract_wasm(new_wasm_hash);
     }
 
     /// Lock `amount` from the maintainer against one issue. Returns the bounty id.
