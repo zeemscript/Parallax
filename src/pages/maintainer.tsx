@@ -357,7 +357,13 @@ export function RepoIssues() {
                           <div className="proposal" key={`${p.issueId}-${p.applicant ?? 'me'}`}>
                             <div className="row" style={{ gap: 8 }}>
                               <Avatar name={applicantName(p, state.session.contributor ?? '?')} />
-                              <strong className="row-title">{applicantName(p, 'You')}</strong>
+                              {(p.applicant ?? state.session.contributor) ? (
+                                <Link className="row-title" to={`/u/${encodeURIComponent((p.applicant ?? state.session.contributor)!)}`}>
+                                  {applicantName(p, state.session.contributor ?? 'You')}
+                                </Link>
+                              ) : (
+                                <strong className="row-title">{applicantName(p, 'You')}</strong>
+                              )}
                               {isOwnApplication(p) && <Chip>You</Chip>}
                               <span className="spacer" />
                               <Chip tone={statusTone(p.status)}>
