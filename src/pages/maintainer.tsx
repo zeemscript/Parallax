@@ -265,6 +265,7 @@ export function RepoIssues() {
   const repo = useRepo();
   const [open, setOpen] = useState<string | null>(null);
   const [posting, setPosting] = useState(false);
+  const [editing, setEditing] = useState<Issue | null>(null);
   if (!repo) return <Navigate to="/maintainer" replace />;
 
   const issues = state.issues.filter(i => i.repoId === repo.id);
@@ -352,7 +353,22 @@ export function RepoIssues() {
                       style={{ overflow: 'hidden' }}
                     >
                       <div className="issue-block-body">
-                        <p className="muted">{issue.description}</p>
+                        <div className="row wrap" style={{ gap: 8 }}>
+                          <p className="muted" style={{ flex: 1, margin: 0 }}>{issue.description}</p>
+                          <button
+                            className="btn ghost xs"
+                            disabled={!!chosen}
+                            title={chosen ? 'Cannot edit an issue once a contributor is assigned or paid.' : 'Edit issue'}
+                            onClick={() => setEditing(issue)}
+                          >
+                            Edit
+                          </button>
+                        </div>
+                        {chosen && (
+                          <p className="hint" style={{ margin: 0 }}>
+                            Editing is locked because this issue is already {chosen.status === 'Paid' ? 'paid out' : `assigned to ${applicantName(chosen, 'you')}`}.
+                          </p>
+                        )}
                         {proposals.length ? proposals.map(p => (
                           <div className="proposal" key={`${p.issueId}-${p.applicant ?? 'me'}`}>
                             <div className="row" style={{ gap: 8 }}>
@@ -404,6 +420,29 @@ export function RepoIssues() {
             notify(`Issue posted. $${formatMoney(issue.bounty)} ${PLATFORM.asset} set aside in escrow.`);
           }}
         />
+      </ModalHost>
+
+      <ModalHost open={!!editing} title="Edit issue" onClose={() => setEditing(null)}>
+        {editing && (
+          <PostIssueForm
+            repo={repo}
+            initial={editing}
+            onDone={updated => {
+              setState(s => ({
+                ...s,
+                issues: s.issues.map(i => i.id === editing.id ? {
+                  ...i,
+                  title: updated.title,
+                  description: updated.description,
+                  criteria: updated.criteria,
+                  complexity: updated.complexity,
+                } : i),
+              }));
+              setEditing(null);
+              notify('Issue updated.');
+            }}
+          />
+        )}
       </ModalHost>
     </Page>
   );
@@ -463,30 +502,30 @@ export function RepoSettings() {
 
 /* ------------------------------------------------------------- post an issue */
 
-function PostIssueForm({ repo, onDone }: { repo: Repo; onDone: (issue: Issue) => void }) {
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [criteria, setCriteria] = useState('');
-  const [complexity, setComplexity] = useState<Complexity>('Medium');
-  const [bounty, setBounty] = useState(String(suggestedBounty('Medium')));
+function PostIssueForm({ repo, initial, onDone }: { repo: Repo; initial?: Issue; onDone: (issue: Issue) => void }) {
+  const [title, setTitle] = useState(initial?.title ?? '');
+  const [description, setDescription] = useState(initial?.description ?? '');
+  const [criteria, setCriteria] = useState(initial ? initial.criteria.join('\n') : '');
+  const [complexity, setComplexity] = useState<Complexity>(initial?.complexity ?? 'Medium');
+  const [bounty, setBounty] = useState(String(initial?.bounty ?? suggestedBounty('Medium')));
   const [err, setErr] = useState('');
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    const amount = Number(bounty);
+    const amount = initial ? initial.bounty : Number(bounty);
     const lines = criteria.split('\n').map(l => l.trim()).filter(Boolean);
     if (title.trim().length < 8) { setErr('Give the issue a title of at least 8 characters.'); return; }
     if (!lines.length) { setErr('Add at least one acceptance criterion, one per line.'); return; }
-    if (!Number.isInteger(amount) || amount < 10) { setErr(`Set a bounty of at least 10 ${PLATFORM.asset}.`); return; }
+    if (!initial && (!Number.isInteger(amount) || amount < 10)) { setErr(`Set a bounty of at least 10 ${PLATFORM.asset}.`); return; }
     onDone({
-      id: '',
+      id: initial?.id ?? '',
       repoId: repo.id,
       title: title.trim(),
       description: description.trim() || title.trim(),
       criteria: lines,
       complexity,
       bounty: amount,
-      created: new Date().toISOString().slice(0, 10),
+      created: initial?.created ?? new Date().toISOString().slice(0, 10),
     });
   };
 
@@ -515,7 +554,7 @@ function PostIssueForm({ repo, onDone }: { repo: Repo; onDone: (issue: Issue) =>
             onChange={e => {
               const next = e.target.value as Complexity;
               setComplexity(next);
-              setBounty(String(suggestedBounty(next)));
+              if (!initial) setBounty(String(suggestedBounty(next)));
             }}>
             {LEVELS.map(l => <option key={l}>{l}</option>)}
           </select>
@@ -523,13 +562,16 @@ function PostIssueForm({ repo, onDone }: { repo: Repo; onDone: (issue: Issue) =>
         <label className="field" style={{ flex: 1 }}>
           <span>Bounty ({PLATFORM.asset})</span>
           <input className="input num" aria-label="Bounty" inputMode="numeric"
+            disabled={!!initial}
             value={bounty} onChange={e => { setBounty(e.target.value.replace(/\D/g, '')); setErr(''); }} />
         </label>
       </div>
       {err
         ? <p className="err" role="alert">{err}</p>
-        : <p className="hint">The bounty is held in escrow when you post and released to the assignee on merge.</p>}
-      <button className="btn primary block" type="submit">Post and fund issue</button>
+        : <p className="hint">{initial
+            ? 'The bounty is locked in escrow and cannot be edited here (use bounty top-up #6 to add funds).'
+            : 'The bounty is held in escrow when you post and released to the assignee on merge.'}</p>}
+      <button className="btn primary block" type="submit">{initial ? 'Save changes' : 'Post and fund issue'}</button>
     </form>
   );
 }
