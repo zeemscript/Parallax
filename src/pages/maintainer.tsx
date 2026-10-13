@@ -265,6 +265,9 @@ export function RepoIssues() {
   const repo = useRepo();
   const [open, setOpen] = useState<string | null>(null);
   const [posting, setPosting] = useState(false);
+  const [reviewing, setReviewing] = useState<Application | null>(null);
+  const [reviewNote, setReviewNote] = useState('');
+  const [reviewErr, setReviewErr] = useState('');
   if (!repo) return <Navigate to="/maintainer" replace />;
 
   const issues = state.issues.filter(i => i.repoId === repo.id);
@@ -288,6 +291,26 @@ export function RepoIssues() {
         a.issueId === target.issueId && a.applicant === target.applicant ? { ...a, status: 'Rejected' } : a),
     }));
     notify('Proposal declined.');
+  };
+
+  const requestChanges = () => {
+    if (!reviewing) return;
+    const note = reviewNote.trim();
+    if (!note) {
+      setReviewErr('Enter a short review note explaining what needs to change.');
+      return;
+    }
+    setState(s => ({
+      ...s,
+      applications: s.applications.map(a =>
+        a.issueId === reviewing.issueId && a.applicant === reviewing.applicant
+          ? { ...a, status: 'Assigned', reviewNotes: [...(a.reviewNotes ?? []), note] }
+          : a),
+    }));
+    setReviewing(null);
+    setReviewNote('');
+    setReviewErr('');
+    notify('Changes requested on pull request.');
   };
 
   // Merging releases the escrowed bounty to the assignee and writes their receipt.
@@ -378,10 +401,27 @@ export function RepoIssues() {
                                 <GitPullRequest size={13} />{p.pr.replace('https://github.com/', '')}
                               </a>
                             )}
+                            {p.reviewNotes && p.reviewNotes.length > 0 && (
+                              <div className="col" style={{ gap: 4 }}>
+                                <span className="label">Review notes</span>
+                                <ul className="criteria">
+                                  {p.reviewNotes.map((n, i) => <li key={i}><span className="muted">{n}</span></li>)}
+                                </ul>
+                              </div>
+                            )}
                             {p.status === 'PR submitted' && (
-                              <button className="btn primary xs" onClick={() => release(issue, p)}>
-                                <Check size={12} />Merge &amp; release ${formatMoney(issue.bounty)}
-                              </button>
+                              <div className="row" style={{ gap: 6 }}>
+                                <button className="btn primary xs" onClick={() => release(issue, p)}>
+                                  <Check size={12} />Merge &amp; release ${formatMoney(issue.bounty)}
+                                </button>
+                                <button className="btn ghost xs" onClick={() => {
+                                  setReviewErr('');
+                                  setReviewNote('');
+                                  setReviewing(p);
+                                }}>
+                                  Request changes
+                                </button>
+                              </div>
                             )}
                           </div>
                         )) : <p className="hint">No proposals on this issue yet.</p>}
@@ -404,6 +444,24 @@ export function RepoIssues() {
             notify(`Issue posted. $${formatMoney(issue.bounty)} ${PLATFORM.asset} set aside in escrow.`);
           }}
         />
+      </ModalHost>
+
+      <ModalHost open={!!reviewing} title="Request changes" onClose={() => setReviewing(null)}>
+        <p>The proposal returns to <strong>Assigned</strong> with its pull request link preserved so the contributor can push fixes and resubmit.</p>
+        <label className="field">
+          <span>Review note</span>
+          <textarea
+            className="textarea"
+            rows={4}
+            autoFocus
+            aria-label="Review note"
+            placeholder="What needs to change before this can merge?"
+            value={reviewNote}
+            onChange={e => { setReviewNote(e.target.value); if (reviewErr) setReviewErr(''); }}
+          />
+        </label>
+        {reviewErr && <p className="err" role="alert">{reviewErr}</p>}
+        <button className="btn primary block" onClick={requestChanges}>Send review note</button>
       </ModalHost>
     </Page>
   );
