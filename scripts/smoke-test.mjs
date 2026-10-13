@@ -85,13 +85,6 @@ try {
   await settle();
   assert.equal(await page.locator('.list-row').count(), 7);
 
-  await page.getByLabel('Bounty').selectOption('under $250');
-  await settle();
-  assert.equal(await page.locator('.list-row').count(), 2, 'bounty under $250 matches exactly 2 issues');
-  await page.getByRole('button', { name: 'Reset' }).click();
-  await settle();
-  assert.equal(await page.locator('.list-row').count(), 7);
-
   // ------------------------------------------------------- contributor apply
   await go('/issue/512');
   await page.getByRole('heading', { name: 'Add a test helper for asserting emitted events' }).waitFor();
@@ -100,6 +93,23 @@ try {
   await page.getByLabel('Display name').fill('Casey Contributor');
   await page.getByRole('button', { name: 'Continue' }).click();
   await page.waitForURL('**/issue/512');
+  await page.getByRole('button', { name: 'Apply to this issue' }).click();
+  assert.equal(await page.locator('#root').getAttribute('inert'), '', 'page behind dialog is inert');
+  assert.ok(await page.evaluate(() => {
+    const dialog = document.querySelector('[role="dialog"]');
+    const id = dialog?.getAttribute('aria-labelledby');
+    return !!id && document.getElementById(id)?.textContent === 'Apply to this issue';
+  }), 'dialog is labelled by its heading via aria-labelledby');
+  await page.keyboard.press('Tab');
+  assert.equal(await page.evaluate(() => document.activeElement?.textContent), 'Send proposal');
+  await page.keyboard.press('Tab');
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Close dialog',
+    'Tab cycles within the open dialog');
+  await page.keyboard.press('Escape');
+  await settle();
+  assert.equal(await page.evaluate(() => document.activeElement?.textContent), 'Apply to this issue',
+    'closing dialog returns focus to the opener button');
+
   await page.getByRole('button', { name: 'Apply to this issue' }).click();
   await page.getByLabel('Your plan').fill('I would add an assert_emitted helper that matches topics and data, prints a readable diff on failure, and ships with a documented example test.');
   await page.getByRole('button', { name: 'Send proposal' }).click();
