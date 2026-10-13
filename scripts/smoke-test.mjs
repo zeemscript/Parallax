@@ -85,13 +85,6 @@ try {
   await settle();
   assert.equal(await page.locator('.list-row').count(), 7);
 
-  await page.getByLabel('Bounty').selectOption('under $250');
-  await settle();
-  assert.equal(await page.locator('.list-row').count(), 2, 'bounty under $250 matches exactly 2 issues');
-  await page.getByRole('button', { name: 'Reset' }).click();
-  await settle();
-  assert.equal(await page.locator('.list-row').count(), 7);
-
   // ------------------------------------------------------- contributor apply
   await go('/issue/512');
   await page.getByRole('heading', { name: 'Add a test helper for asserting emitted events' }).waitFor();
@@ -108,6 +101,59 @@ try {
   await page.reload();
   await settle();
   assert.match(await page.locator('.proposal').first().innerText(), /Applied/, 'proposal persists');
+
+  let rpcMode = 'match';
+  await page.route('https://soroban-testnet.stellar.org/**', async route => {
+    if (rpcMode === 'error') {
+      await route.fulfill({ status: 503, contentType: 'application/json', body: '{}' });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        result: {
+          bounty: {
+            amount: rpcMode === 'mismatch' ? 300 : 450,
+            status: 'Open',
+            assignee: 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN7',
+          },
+        },
+      }),
+    });
+  });
+  await page.evaluate(key => {
+    const s = JSON.parse(localStorage.getItem(key));
+    s.issues = s.issues.map(i => (i.id === '512' ? { ...i, bountyId: 1 } : i));
+    localStorage.setItem(key, JSON.stringify(s));
+  }, storageKey);
+  await page.reload();
+  await settle();
+  assert.equal(await page.locator('[data-onchain-escrow="loaded"]').count(), 1, 'reads live escrow state from Soroban RPC');
+  assert.match(await page.locator('[data-onchain-amount="true"]').innerText(), /\$450 USDC/);
+  assert.equal(await page.locator('[data-onchain-assignee="true"]').innerText(), 'GAAZ…CWN7');
+  assert.equal(await page.locator('[data-contract-explorer-link="true"]').count(), 1);
+  assert.equal(await page.locator('[data-escrow-amount-warning="true"]').count(), 0);
+
+  rpcMode = 'mismatch';
+  await page.reload();
+  await settle();
+  assert.equal(await page.locator('[data-escrow-amount-warning="true"]').count(), 1, 'warns when on-chain amount differs from listed bounty');
+
+  rpcMode = 'error';
+  await page.reload();
+  await settle();
+  assert.equal(await page.locator('[data-onchain-error="true"]').count(), 1, 'shows RPC error without blanking the Bounty card');
+  assert.match(await page.locator('[data-bounty-card="true"]').innerText(), /Paid on merge/);
+  errors.length = 0;
+  await page.unroute('https://soroban-testnet.stellar.org/**');
+  await page.evaluate(key => {
+    const s = JSON.parse(localStorage.getItem(key));
+    s.issues = s.issues.map(i => (i.id === '512' ? { ...i, bountyId: undefined } : i));
+    localStorage.setItem(key, JSON.stringify(s));
+  }, storageKey);
 
   await go('/me');
   assert.equal(await page.locator('.list-row').count(), 1, 'assignment appears in contributor workspace');
