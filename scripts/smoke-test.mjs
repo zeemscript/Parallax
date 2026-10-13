@@ -237,6 +237,45 @@ try {
   await page.reload();
   assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark');
 
+  // ------------------------------------------------ explore pagination (50 issues)
+  await page.evaluate(key => {
+    const s = JSON.parse(localStorage.getItem(key));
+    s._savedIssues = s.issues;
+    s.issues = Array.from({ length: 50 }, (_, idx) => ({
+      id: String(1000 + idx),
+      repoId: 'cli',
+      title: `Seeded pagination issue ${idx + 1}`,
+      description: 'Testing explore pagination with 50 issues.',
+      criteria: ['Check paging'],
+      complexity: 'Trivial',
+      bounty: 150,
+      created: '2026-10-01',
+    }));
+    localStorage.setItem(key, JSON.stringify(s));
+  }, storageKey);
+  await page.reload();
+  await settle();
+  await page.locator('.result-count', { hasText: '50 issues' }).waitFor();
+  assert.equal(await page.locator('.list-row').count(), 20, 'shows 20 issues on first page');
+  await page.getByRole('button', { name: 'Load more' }).click();
+  await settle();
+  assert.match(page.url(), /[?&]page=2/, 'page position survives in the URL');
+  assert.equal(await page.locator('.list-row').count(), 40, 'shows 40 issues after first Load more');
+  await page.getByRole('button', { name: 'Load more' }).click();
+  await settle();
+  assert.match(page.url(), /[?&]page=3/, 'page=3 in URL');
+  assert.equal(await page.locator('.list-row').count(), 50, 'shows all 50 issues on page 3');
+  assert.equal(await page.getByRole('button', { name: 'Load more' }).count(), 0, 'Load more hidden when all shown');
+  await page.getByLabel('Search', { exact: true }).fill('Seeded pagination issue 1');
+  await settle();
+  assert.ok(!page.url().includes('page='), 'changing search resets to first page');
+  await page.evaluate(key => {
+    const s = JSON.parse(localStorage.getItem(key));
+    s.issues = s._savedIssues;
+    delete s._savedIssues;
+    localStorage.setItem(key, JSON.stringify(s));
+  }, storageKey);
+
   // ------------------------------------------------------------- responsive
   const routes = [
     '/', '/explore', '/explore/repos', '/explore/orgs', '/issue/842',
