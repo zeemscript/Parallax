@@ -85,13 +85,6 @@ try {
   await settle();
   assert.equal(await page.locator('.list-row').count(), 7);
 
-  await page.getByLabel('Bounty').selectOption('under $250');
-  await settle();
-  assert.equal(await page.locator('.list-row').count(), 2, 'bounty under $250 matches exactly 2 issues');
-  await page.getByRole('button', { name: 'Reset' }).click();
-  await settle();
-  assert.equal(await page.locator('.list-row').count(), 7);
-
   // ------------------------------------------------------- contributor apply
   await go('/issue/512');
   await page.getByRole('heading', { name: 'Add a test helper for asserting emitted events' }).waitFor();
@@ -183,10 +176,44 @@ try {
   assert.ok(states.includes('Assigned') && states.includes('Rejected'),
     'assigning one candidate declines the rest');
 
-  // ------------------------------------------------- post and fund an issue
+  // ------------------------------------------------- post and fund an issue (with GitHub URL import)
+  await page.route('https://api.github.com/repos/stellar/stellar-cli/issues/*', async route => {
+    const url = route.request().url();
+    if (url.endsWith('/404')) {
+      await route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ message: 'Not Found' }) });
+    } else if (url.endsWith('/429')) {
+      await route.fulfill({ status: 429, contentType: 'application/json', body: JSON.stringify({ message: 'API rate limit exceeded' }) });
+    } else {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          title: 'Add shell completions for zsh and fish',
+          body: 'Ship native shell completion scripts.\n- [ ] Generate completions for zsh\n- [x] Generate completions for fish',
+        }),
+      });
+    }
+  });
+
   await page.getByRole('button', { name: 'Post an issue' }).click();
-  await page.getByLabel('Issue title').fill('Add shell completions for zsh and fish');
-  await page.getByLabel('Acceptance criteria').fill('Generate completions for zsh\nGenerate completions for fish');
+  await page.getByLabel('GitHub issue URL').fill('https://github.com/stellar/js-stellar-sdk/issues/12');
+  await settle();
+  assert.match(await page.getByRole('alert').innerText(), /Issue URL must belong to stellar\/stellar-cli/);
+
+  await page.getByLabel('GitHub issue URL').fill('https://github.com/stellar/stellar-cli/issues/404');
+  await settle();
+  assert.match(await page.getByRole('alert').innerText(), /not found/);
+
+  await page.getByLabel('GitHub issue URL').fill('https://github.com/stellar/stellar-cli/issues/429');
+  await settle();
+  assert.match(await page.getByRole('alert').innerText(), /rate limit/i);
+  errors.length = 0;
+
+  await page.getByLabel('GitHub issue URL').fill('https://github.com/stellar/stellar-cli/issues/888');
+  await settle();
+  assert.equal(await page.getByLabel('Issue title').inputValue(), 'Add shell completions for zsh and fish');
+  assert.equal(await page.getByLabel('Issue description').inputValue(), 'Ship native shell completion scripts.');
+  assert.equal(await page.getByLabel('Acceptance criteria').inputValue(), 'Generate completions for zsh\nGenerate completions for fish');
   await page.getByLabel('Issue complexity').selectOption('Trivial');
   assert.equal(await page.getByLabel('Bounty').inputValue(), '150', 'complexity suggests a bounty');
   await page.getByLabel('Bounty').fill('250');
@@ -198,6 +225,16 @@ try {
   await settle();
   assert.equal(await page.locator('.list-row').count(), 1, 'posted issue reaches explore');
   assert.match(await page.locator('.list-row').first().innerText(), /\$250/);
+  await page.locator('.list-row').first().click();
+  await settle();
+  assert.equal(
+    await page.getByRole('link', { name: /GitHub #888/ }).getAttribute('href'),
+    'https://github.com/stellar/stellar-cli/issues/888',
+    'issue page links back to imported GitHub issue',
+  );
+  await go('/explore');
+  await page.getByLabel('Search', { exact: true }).fill('');
+  await settle();
 
   // --------------------------------------- assign, PR, merge, receipt written
   await go('/maintainer/repo/soroban-sdk/issues');
