@@ -17,6 +17,7 @@ const TABS = [
 
 const SORTS = ['Newest', 'Bounty', 'Title'] as const;
 const LEVELS: (Complexity | 'Any')[] = ['Any', 'Trivial', 'Medium', 'High'];
+const PAGE_SIZE = 20;
 
 export function Explore({ tab }: { tab: Tab }) {
   const { state } = useApp();
@@ -28,6 +29,22 @@ export function Explore({ tab }: { tab: Tab }) {
   const [sort, setSort] = useState<(typeof SORTS)[number]>('Newest');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
+
+  const page = Math.max(1, Number.parseInt(params.get('page') ?? '1', 10) || 1);
+
+  const resetPage = () => {
+    if (params.has('page')) {
+      const next = new URLSearchParams(params);
+      next.delete('page');
+      setParams(next, { replace: true });
+    }
+  };
+
+  const loadMore = () => {
+    const next = new URLSearchParams(params);
+    next.set('page', String(page + 1));
+    setParams(next);
+  };
 
   useEffect(() => {
     if (params.get('focus')) {
@@ -58,6 +75,11 @@ export function Explore({ tab }: { tab: Tab }) {
         : sort === 'Title' ? a.title.localeCompare(b.title)
           : b.created.localeCompare(a.created));
   }, [state.issues, accepted, level, lang, needle, sort]);
+
+  const visibleIssues = useMemo(
+    () => issues.slice(0, page * PAGE_SIZE),
+    [issues, page],
+  );
 
   const repos = useMemo(
     () => accepted.filter(r =>
@@ -100,10 +122,10 @@ export function Explore({ tab }: { tab: Tab }) {
               aria-label="Search"
               placeholder={tab === 'orgs' ? 'Search organizations…' : tab === 'repos' ? 'Search repositories…' : 'Search issues…'}
               value={q}
-              onChange={e => setQ(e.target.value)}
+              onChange={e => { setQ(e.target.value); resetPage(); }}
             />
             {q && (
-              <button className="btn ghost icon xs" aria-label="Clear search" onClick={() => setQ('')}>
+              <button className="btn ghost icon xs" aria-label="Clear search" onClick={() => { setQ(''); resetPage(); }}>
                 <X size={12} />
               </button>
             )}
@@ -135,14 +157,14 @@ export function Explore({ tab }: { tab: Tab }) {
                   <label className="field inline">
                     <span>Complexity</span>
                     <select className="select" aria-label="Complexity" value={level}
-                      onChange={e => setLevel(e.target.value as Complexity | 'Any')}>
+                      onChange={e => { setLevel(e.target.value as Complexity | 'Any'); resetPage(); }}>
                       {LEVELS.map(l => <option key={l}>{l}</option>)}
                     </select>
                   </label>
                 )}
                 <label className="field inline">
                   <span>Language</span>
-                  <select className="select" aria-label="Language" value={lang} onChange={e => setLang(e.target.value)}>
+                  <select className="select" aria-label="Language" value={lang} onChange={e => { setLang(e.target.value); resetPage(); }}>
                     {languages.map(l => <option key={l}>{l}</option>)}
                   </select>
                 </label>
@@ -150,12 +172,12 @@ export function Explore({ tab }: { tab: Tab }) {
                   <label className="field inline">
                     <span>Sort</span>
                     <select className="select" aria-label="Sort" value={sort}
-                      onChange={e => setSort(e.target.value as (typeof SORTS)[number])}>
+                      onChange={e => { setSort(e.target.value as (typeof SORTS)[number]); resetPage(); }}>
                       {SORTS.map(s => <option key={s}>{s}</option>)}
                     </select>
                   </label>
                 )}
-                <button className="btn sm ghost" onClick={() => { setLevel('Any'); setLang('Any'); setSort('Newest'); }}>
+                <button className="btn sm ghost" onClick={() => { setLevel('Any'); setLang('Any'); setSort('Newest'); resetPage(); }}>
                   Reset
                 </button>
               </div>
@@ -166,25 +188,32 @@ export function Explore({ tab }: { tab: Tab }) {
         <p className="result-count num">{count} {tab === 'issues' ? 'issues' : tab === 'repos' ? 'repositories' : 'organizations'}</p>
 
         {tab === 'issues' && (issues.length ? (
-          <Stagger className="list">
-            {issues.map(issue => {
-              const repo = accepted.find(r => r.id === issue.repoId)!;
-              return (
-                <Item key={issue.id}>
-                  <Link className="list-row" to={`/issue/${issue.id}`}>
-                    <span className="mono dim issue-num">#{issue.id}</span>
-                    <span className="col" style={{ gap: 2, minWidth: 0, flex: 1 }}>
-                      <span className="row-title">{issue.title}</span>
-                      <span className="row-sub">{repoName(repo)}</span>
-                    </span>
-                    <Chip className="hide-sm">{issue.complexity}</Chip>
-                    <Chip className="solid num">${formatMoney(issue.bounty)}</Chip>
-                    <ArrowUpRight size={14} className="dim hide-sm" />
-                  </Link>
-                </Item>
-              );
-            })}
-          </Stagger>
+          <>
+            <Stagger className="list">
+              {visibleIssues.map(issue => {
+                const repo = accepted.find(r => r.id === issue.repoId)!;
+                return (
+                  <Item key={issue.id}>
+                    <Link className="list-row" to={`/issue/${issue.id}`}>
+                      <span className="mono dim issue-num">#{issue.id}</span>
+                      <span className="col" style={{ gap: 2, minWidth: 0, flex: 1 }}>
+                        <span className="row-title">{issue.title}</span>
+                        <span className="row-sub">{repoName(repo)}</span>
+                      </span>
+                      <Chip className="hide-sm">{issue.complexity}</Chip>
+                      <Chip className="solid num">${formatMoney(issue.bounty)}</Chip>
+                      <ArrowUpRight size={14} className="dim hide-sm" />
+                    </Link>
+                  </Item>
+                );
+              })}
+            </Stagger>
+            {visibleIssues.length < issues.length && (
+              <div className="row" style={{ justifyContent: 'center', marginTop: 'var(--s4)' }}>
+                <button className="btn sm" onClick={loadMore}>Load more</button>
+              </div>
+            )}
+          </>
         ) : <Empty title="No issues match">Try a different search or clear the filters.</Empty>)}
 
         {tab === 'repos' && (repos.length ? (
