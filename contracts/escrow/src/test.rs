@@ -165,3 +165,15 @@ fn release_without_maintainer_auth_fails() {
         &String::from_str(&s.env, "https://github.com/stellar/stellar-cli/pull/1"),
     );
 }
+
+#[test]
+fn maintainer_cannot_self_assign() {
+    let s = setup();
+    let id = s.escrow.fund(&s.maintainer, &s.repo, &842, &900);
+    assert_eq!(
+        s.escrow.try_assign(&id, &Some(s.maintainer.clone())),
+        Err(Ok(Error::SelfAssign))
+    );
+    s.escrow.assign(&id, &None);
+    assert_eq!(s.escrow.get(&id).assignee, None);
+}
