@@ -38,3 +38,10 @@ Out of scope:
 - Issues in third-party dependencies with no demonstrated impact on Parallax. Report those
   upstream.
 - Denial of service against public RPC endpoints.
+
+## Contract Admin Role
+
+The escrow contract stores an `admin` address set at deployment (`__constructor(token, admin)`):
+
+- **Allowed actions**: `upgrade(new_wasm_hash)` to replace the contract's Wasm bytecode in-place, and `set_admin(new_admin)` to rotate the admin key.
+- **No custody over bounty funds**: `assign`, `release`, and `refund` strictly require `bounty.maintainer.require_auth()`. The admin cannot move, redirect, or refund any maintainer's escrowed funds under the deployed bytecode.
