@@ -7,6 +7,13 @@ import { useApp } from '../lib/store';
 import { Avatar, Chip, Crumbs, Empty, ModalHost, Page } from '../components/ui';
 
 export function IssuePage() {
+  const [copied, setCopied] = useState(false);
+  const handleCopyLink = () => {
+    navigator.clipboard?.writeText(window.location.href);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   const { issueId } = useParams();
   const { state, setState, notify } = useApp();
   const navigate = useNavigate();
