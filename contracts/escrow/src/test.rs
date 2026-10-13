@@ -165,3 +165,49 @@ fn release_without_maintainer_auth_fails() {
         &String::from_str(&s.env, "https://github.com/stellar/stellar-cli/pull/1"),
     );
 }
+
+#[test]
+fn transfer_maintainer_updates_maintainer_and_refunds_to_new_maintainer() {
+    let s = setup();
+    let id = s.escrow.fund(&s.maintainer, &s.repo, &842, &900);
+    let new_maintainer = Address::generate(&s.env);
+
+    s.escrow.transfer_maintainer(&id, &new_maintainer);
+
+    // Both the current and the new maintainer must authorize the transfer.
+    let auths = s.env.auths();
+    assert_eq!(auths.len(), 2);
+    assert_eq!(auths[0].0, s.maintainer);
+    assert_eq!(auths[1].0, new_maintainer);
+
+    let transferred = Transferred {
+        id,
+        old_maintainer: s.maintainer.clone(),
+        new_maintainer: new_maintainer.clone(),
+    };
+    let events = s.env.events().all();
+    assert!(events
+        .events()
+        .contains(&transferred.to_xdr(&s.env, &s.escrow.address)));
+
+    assert_eq!(s.escrow.get(&id).maintainer, new_maintainer);
+
+    // Refunding after a transfer sends the locked tokens to the new maintainer.
+    s.escrow.refund(&id);
+    assert_eq!(s.usdc.balance(&s.maintainer), 9_100);
+    assert_eq!(s.usdc.balance(&new_maintainer), 900);
+    assert_eq!(s.escrow.get(&id).status, Status::Refunded);
+}
+
+#[test]
+fn transfer_maintainer_on_closed_bounty_fails() {
+    let s = setup();
+    let id = s.escrow.fund(&s.maintainer, &s.repo, &842, &900);
+    s.escrow.refund(&id);
+
+    let new_maintainer = Address::generate(&s.env);
+    assert_eq!(
+        s.escrow.try_transfer_maintainer(&id, &new_maintainer),
+        Err(Ok(Error::NotOpen))
+    );
+}
