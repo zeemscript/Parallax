@@ -199,6 +199,45 @@ try {
   await page.locator('.issue-block-body .proposal').first().getByRole('button', { name: 'Assign' }).click();
   await settle();
 
+  let horizonMode = 'not_found';
+  await page.route('https://horizon-testnet.stellar.org/accounts/*', async route => {
+    if (horizonMode === 'not_found') {
+      await route.fulfill({
+        status: 404,
+        contentType: 'application/json',
+        body: JSON.stringify({ status: 404, title: 'Resource Missing' }),
+      });
+      return;
+    }
+    if (horizonMode === 'no_trustline') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ balances: [{ asset_type: 'native', balance: '100.0000000' }] }),
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        balances: [
+          { asset_type: 'credit_alphanum4', asset_code: 'USDC', balance: '50.0000000' },
+          { asset_type: 'native', balance: '100.0000000' },
+        ],
+      }),
+    });
+  });
+
+  await page.route('https://horizon-testnet.stellar.org/transactions', async route => {
+    horizonMode = 'ready';
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ hash: 'mock-trustline-tx-hash', successful: true }),
+    });
+  });
+
   await go('/me/settings');
   await page.getByLabel('Payout address').fill('not-an-address');
   await page.getByRole('button', { name: 'Save address' }).click();
@@ -206,6 +245,40 @@ try {
   await page.getByLabel('Payout address').fill('GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN7');
   await page.getByRole('button', { name: 'Save address' }).click();
   await settle();
+  assert.equal(await page.locator('[data-account-status="not_found"]').count(), 1, '404 shows account not found');
+  assert.match(await page.locator('[data-account-status="not_found"]').innerText(), /Account not found/);
+  errors.length = 0;
+
+  horizonMode = 'no_trustline';
+  await page.getByRole('button', { name: 'Save address' }).click();
+  await settle();
+  assert.equal(await page.locator('[data-account-status="no_trustline"]').count(), 1, 'missing USDC shows no trustline');
+  assert.match(await page.locator('[data-account-status="no_trustline"]').innerText(), /No USDC trustline/);
+  assert.match(await page.locator('[data-trustline-prompt="true"]').innerText(), /0\.5 XLM/, '0.5 XLM reserve hint is shown');
+
+  await page.evaluate(() => {
+    window.freighterApi = {
+      getAddress: async () => ({ address: 'GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H' }),
+      signTransaction: async xdr => ({ signedTxXdr: `signed:${xdr}` }),
+    };
+  });
+  await page.getByRole('button', { name: 'Add USDC trustline' }).click();
+  await settle();
+  assert.equal(await page.locator('[data-trustline-error="true"]').count(), 1, 'mismatched Freighter account is explained');
+  assert.match(await page.locator('[data-trustline-error="true"]').innerText(), /does not match your saved payout address/);
+
+  await page.evaluate(() => {
+    window.freighterApi = {
+      getAddress: async () => ({ address: 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN7' }),
+      signTransaction: async xdr => ({ signedTxXdr: `signed:${xdr}` }),
+    };
+  });
+  await page.getByRole('button', { name: 'Add USDC trustline' }).click();
+  await settle();
+  assert.equal(await page.locator('[data-account-status="ready"]').count(), 1, 'adding trustline re-checks and shows ready to receive');
+  assert.match(await page.locator('[data-account-status="ready"]').innerText(), /Ready to receive/);
+  await page.unroute('https://horizon-testnet.stellar.org/transactions');
+  await page.unroute('https://horizon-testnet.stellar.org/accounts/*');
 
   await go('/me');
   await page.getByRole('button', { name: 'Submit PR' }).click();

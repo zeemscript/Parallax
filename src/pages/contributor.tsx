@@ -153,17 +153,169 @@ export function ContributorSettings() {
   const [name, setName] = useState(state.session.contributor ?? '');
   const [address, setAddress] = useState(state.payoutAddress ?? '');
   const [addressErr, setAddressErr] = useState('');
+  const [accountStatus, setAccountStatus] = useState<
+    | { kind: 'idle' }
+    | { kind: 'checking' }
+    | { kind: 'not_found'; label: string; tone: 'warn'; message: string }
+    | { kind: 'no_trustline'; label: string; tone: 'warn'; message: string }
+    | { kind: 'ready'; label: string; tone: 'success'; message: string }
+    | { kind: 'error'; label: string; tone: 'danger'; message: string }
+  >({ kind: 'idle' });
+  const [trustlineBusy, setTrustlineBusy] = useState(false);
+  const [trustlineErr, setTrustlineErr] = useState('');
   const [confirm, setConfirm] = useState(false);
+
+  const horizonBase =
+    (PLATFORM.network as string) === 'mainnet' || (PLATFORM.network as string) === 'public'
+      ? 'https://horizon.stellar.org'
+      : 'https://horizon-testnet.stellar.org';
+
+  const checkHorizonAccount = async (value: string) => {
+    setAccountStatus({ kind: 'checking' });
+    try {
+      const res = await fetch(`${horizonBase}/accounts/${encodeURIComponent(value)}`, {
+        headers: { Accept: 'application/json' },
+      });
+      if (res.status === 404) {
+        setAccountStatus({
+          kind: 'not_found',
+          label: 'Account not found',
+          tone: 'warn',
+          message: `Fund this address with XLM on ${PLATFORM.chain} ${PLATFORM.network} to activate the account before receiving payouts.`,
+        });
+        return;
+      }
+      if (!res.ok) {
+        setAccountStatus({
+          kind: 'error',
+          label: 'Check failed',
+          tone: 'danger',
+          message: `Horizon returned HTTP ${res.status} while checking this account; your address is saved and you can click Save address to check again.`,
+        });
+        return;
+      }
+      const data = (await res.json()) as {
+        balances?: Array<{ asset_type?: string; asset_code?: string }>;
+      };
+      const balances = Array.isArray(data?.balances) ? data.balances : [];
+      const hasAssetTrustline = balances.some(b => b.asset_code === PLATFORM.asset);
+      if (!hasAssetTrustline) {
+        setAccountStatus({
+          kind: 'no_trustline',
+          label: `No ${PLATFORM.asset} trustline`,
+          tone: 'warn',
+          message: `Add a ${PLATFORM.asset} trustline in your wallet so released bounties settle directly instead of waiting as a claimable balance.`,
+        });
+        return;
+      }
+      setAccountStatus({
+        kind: 'ready',
+        label: 'Ready to receive',
+        tone: 'success',
+        message: `This account is active on ${PLATFORM.chain} ${PLATFORM.network} with a ${PLATFORM.asset} trustline and will receive payouts directly.`,
+      });
+    } catch (err) {
+      const detail = err instanceof Error && err.message ? err.message : 'network error';
+      setAccountStatus({
+        kind: 'error',
+        label: 'Check failed',
+        tone: 'danger',
+        message: `Could not reach ${PLATFORM.chain} Horizon (${detail}); your address is saved and you can click Save address to retry.`,
+      });
+    }
+  };
+
+  const addUsdcTrustline = async () => {
+    const saved = (state.payoutAddress ?? address).trim().toUpperCase();
+    if (!saved || !isStellarAddress(saved)) return;
+    setTrustlineErr('');
+    setTrustlineBusy(true);
+    try {
+      type FreighterBridge = {
+        getAddress?: () => Promise<{ address?: string } | string>;
+        getPublicKey?: () => Promise<string>;
+        signTransaction?: (
+          xdr: string,
+          opts?: { networkPassphrase?: string; address?: string },
+        ) => Promise<{ signedTxXdr?: string } | string>;
+      };
+      const win = window as unknown as { freighterApi?: FreighterBridge; freighter?: FreighterBridge };
+      const bridge = win.freighterApi ?? win.freighter;
+      if (!bridge || (!bridge.getAddress && !bridge.getPublicKey) || !bridge.signTransaction) {
+        setTrustlineErr('Freighter wallet was not detected — install or unlock Freighter to sign the trustline transaction.');
+        return;
+      }
+
+      const rawAddr = bridge.getAddress ? await bridge.getAddress() : await bridge.getPublicKey!();
+      const walletAddr = (typeof rawAddr === 'string' ? rawAddr : rawAddr?.address ?? '').trim().toUpperCase();
+      if (!walletAddr || walletAddr !== saved) {
+        setTrustlineErr(
+          `Freighter is active on ${walletAddr || 'another account'}, which does not match your saved payout address (${saved}) — switch accounts in Freighter and try again.`,
+        );
+        return;
+      }
+
+      const isMainnet = (PLATFORM.network as string) === 'mainnet' || (PLATFORM.network as string) === 'public';
+      const usdcIssuer = isMainnet
+        ? 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN'
+        : 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5';
+      const networkPassphrase = isMainnet
+        ? 'Public Global Stellar Network ; September 2015'
+        : 'Test SDF Network ; September 2015';
+
+      const changeTrustEnvelope = JSON.stringify({
+        operation: 'changeTrust',
+        source: saved,
+        asset: { code: PLATFORM.asset, issuer: usdcIssuer },
+        network: PLATFORM.network,
+      });
+
+      const signed = await bridge.signTransaction(btoa(changeTrustEnvelope), {
+        networkPassphrase,
+        address: saved,
+      });
+      const signedXdr = typeof signed === 'string' ? signed : signed?.signedTxXdr ?? '';
+      if (!signedXdr) {
+        setTrustlineErr('Wallet did not return a signed changeTrust transaction.');
+        return;
+      }
+
+      const txRes = await fetch(`${horizonBase}/transactions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
+        body: new URLSearchParams({ tx: signedXdr }).toString(),
+      });
+      if (!txRes.ok) {
+        setTrustlineErr(`Horizon rejected the changeTrust transaction (HTTP ${txRes.status}).`);
+        return;
+      }
+
+      notify(`${PLATFORM.asset} trustline added.`);
+      await checkHorizonAccount(saved);
+    } catch (err) {
+      const detail = err instanceof Error && err.message ? err.message : 'signing cancelled';
+      setTrustlineErr(`Could not add ${PLATFORM.asset} trustline: ${detail}.`);
+    } finally {
+      setTrustlineBusy(false);
+    }
+  };
 
   const saveAddress = () => {
     const value = address.trim().toUpperCase();
+    setTrustlineErr('');
     if (value && !isStellarAddress(value)) {
       setAddressErr(`Enter a ${PLATFORM.chain} public key: G followed by 55 letters and digits.`);
+      setAccountStatus({ kind: 'idle' });
       return;
     }
     setState(s => ({ ...s, payoutAddress: value || null }));
     setAddress(value);
     notify(value ? 'Payout address saved.' : 'Payout address removed.');
+    if (!value) {
+      setAccountStatus({ kind: 'idle' });
+      return;
+    }
+    void checkHorizonAccount(value);
   };
 
   return (
@@ -199,6 +351,47 @@ export function ContributorSettings() {
         {addressErr
           ? <p className="err" role="alert">{addressErr}</p>
           : <p className="hint">Released bounties are sent here in {PLATFORM.asset}. The account needs a {PLATFORM.asset} trustline; until it has one, payouts wait as a claimable balance.</p>}
+        {accountStatus.kind === 'checking' && (
+          <p className="hint" role="status" data-account-status="checking">
+            Checking account on {PLATFORM.chain} {PLATFORM.network}…
+          </p>
+        )}
+        {(accountStatus.kind === 'not_found'
+          || accountStatus.kind === 'no_trustline'
+          || accountStatus.kind === 'ready'
+          || accountStatus.kind === 'error') && (
+          <div
+            className="row"
+            role={accountStatus.kind === 'error' ? 'alert' : 'status'}
+            data-account-status={accountStatus.kind}
+            style={{ gap: 8, alignItems: 'center', flexWrap: 'wrap' }}
+          >
+            <Chip tone={accountStatus.tone}>{accountStatus.label}</Chip>
+            <span className={accountStatus.kind === 'error' ? 'err' : 'hint'}>{accountStatus.message}</span>
+          </div>
+        )}
+        {accountStatus.kind === 'no_trustline' && (
+          <div className="col" style={{ gap: 6 }} data-trustline-prompt="true">
+            <p className="hint">
+              Adding a {PLATFORM.asset} trustline requires a 0.5 XLM base reserve held in your {PLATFORM.chain} account while the trustline remains open.
+            </p>
+            <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+              <button
+                className="btn sm"
+                type="button"
+                disabled={trustlineBusy}
+                onClick={() => void addUsdcTrustline()}
+              >
+                {trustlineBusy ? `Adding ${PLATFORM.asset} trustline…` : `Add ${PLATFORM.asset} trustline`}
+              </button>
+            </div>
+          </div>
+        )}
+        {trustlineErr && (
+          <p className="err" role="alert" data-trustline-error="true">
+            {trustlineErr}
+          </p>
+        )}
         <div className="row" style={{ gap: 8 }}>
           <button className="btn primary sm" onClick={saveAddress}>Save address</button>
         </div>
