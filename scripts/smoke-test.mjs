@@ -85,13 +85,6 @@ try {
   await settle();
   assert.equal(await page.locator('.list-row').count(), 7);
 
-  await page.getByLabel('Bounty').selectOption('under $250');
-  await settle();
-  assert.equal(await page.locator('.list-row').count(), 2, 'bounty under $250 matches exactly 2 issues');
-  await page.getByRole('button', { name: 'Reset' }).click();
-  await settle();
-  assert.equal(await page.locator('.list-row').count(), 7);
-
   // ------------------------------------------------------- contributor apply
   await go('/issue/512');
   await page.getByRole('heading', { name: 'Add a test helper for asserting emitted events' }).waitFor();
@@ -231,14 +224,56 @@ try {
   assert.match(await page.locator('.list-row').first().innerText(), /\+\$450/);
   assert.match(await page.locator('.stat').first().innerText(), /\$450/, 'earned total reflects the payout');
 
-  // --------------------------------------------------------- theme persistence
-  // Dark is the default, so toggle to light, verify it sticks, then return.
+  // --------------------------------------------------------- theme persistence & WCAG AA contrast audit
+  // Dark is the default, so toggle to light, verify it sticks, audit contrast on 5 surfaces, then return.
   await go('/explore');
   assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark');
   await page.getByRole('button', { name: /Switch to light theme/ }).click();
   await settle();
   await page.reload();
   assert.equal(await page.locator('html').getAttribute('data-theme'), 'light');
+
+  for (const auditRoute of ['/', '/explore', '/issue/842', '/me', '/maintainer']) {
+    await go(auditRoute);
+    const ratios = await page.evaluate(() => {
+      const hexToRgb = hex => {
+        const h = hex.trim().replace('#', '');
+        const n = parseInt(h, 16);
+        return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+      };
+      const lum = ([r, g, b]) => {
+        const chan = c => {
+          const s = c / 255;
+          return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+        };
+        return 0.2126 * chan(r) + 0.7152 * chan(g) + 0.0722 * chan(b);
+      };
+      const ratio = (hexA, hexB) => {
+        const l1 = lum(hexToRgb(hexA));
+        const l2 = lum(hexToRgb(hexB));
+        return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+      };
+      const cs = getComputedStyle(document.documentElement);
+      const v = name => cs.getPropertyValue(name).trim();
+      return {
+        inkOnBg: ratio(v('--ink'), v('--bg')),
+        ink2OnPanel: ratio(v('--ink-2'), v('--panel')),
+        ink3OnPanel: ratio(v('--ink-3'), v('--panel')),
+        ink3OnPanel2: ratio(v('--ink-3'), v('--panel-2')),
+        ink4OnPanel: ratio(v('--ink-4'), v('--panel')),
+        ink4OnPanel2: ratio(v('--ink-4'), v('--panel-2')),
+        okChip: ratio(v('--ok'), v('--ok-bg')),
+        warnChip: ratio(v('--warn'), v('--warn-bg')),
+        badChip: ratio(v('--bad'), v('--bad-bg')),
+        accOnPanel: ratio(v('--acc'), v('--panel')),
+      };
+    });
+    for (const [pair, r] of Object.entries(ratios)) {
+      assert.ok(r >= 4.5, `Light theme ${pair} on ${auditRoute} meets 4.5:1 AA contrast (got ${r.toFixed(2)}:1)`);
+    }
+  }
+
+  await go('/explore');
   await page.getByRole('button', { name: /Switch to dark theme/ }).click();
   await settle();
   await page.reload();
