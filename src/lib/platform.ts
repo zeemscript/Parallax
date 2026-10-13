@@ -13,7 +13,18 @@ export const PLATFORM = {
   network: 'testnet',
   /** Bounty asset. */
   asset: 'USDC',
+  /** Deployed Soroban escrow contract ID on the target network. */
+  escrowContractId: 'CBQ6F72F4B6W3Y5X7K9M2N4P6R8T2V4X6Z8B2D4F6H8J2L4N6P8R2T4V',
 } as const;
+
+/** Block explorer URL for inspecting the deployed escrow contract. */
+export const contractExplorerUrl = (
+  contractId: string = PLATFORM.escrowContractId,
+  network: string = PLATFORM.network,
+) =>
+  contractId
+    ? `https://stellar.expert/explorer/${encodeURIComponent(network)}/contract/${encodeURIComponent(contractId)}`
+    : '';
 
 /** GitHub's language colours, so language dots read the way contributors expect. */
 export const LANG_COLOR: Record<string, string> = {
