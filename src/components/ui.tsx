@@ -1,9 +1,9 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
-import { AnimatePresence, motion } from 'motion/react';
-import { X } from 'lucide-react';
-import { LANG_COLOR, orgAvatar } from '../lib/platform';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { ArrowUpRight, X } from 'lucide-react';
+import { LANG_COLOR, orgAvatar, PLATFORM } from '../lib/platform';
 
 export const EASE = [0.2, 0.8, 0.2, 1] as const;
 
@@ -234,3 +234,216 @@ export function GithubMark({ size = 14 }: { size?: number }) {
     </svg>
   );
 }
+
+export type TransactionStatus = 'idle' | 'signing' | 'pending' | 'success' | 'error';
+
+const CONTRACT_ERROR_MESSAGES: Record<number, string> = {
+  1: 'The bounty amount must be greater than zero.',
+  2: 'No bounty with that ID was found in the escrow contract.',
+  3: 'This bounty is already paid or refunded and cannot be changed.',
+  4: 'Assign a contributor to this bounty before releasing funds.',
+  5: 'This issue already has an open bounty in escrow.',
+};
+
+const CONTRACT_NAME_MESSAGES: Record<string, string> = {
+  InvalidAmount: CONTRACT_ERROR_MESSAGES[1],
+  NotFound: CONTRACT_ERROR_MESSAGES[2],
+  NotOpen: CONTRACT_ERROR_MESSAGES[3],
+  NotAssigned: CONTRACT_ERROR_MESSAGES[4],
+  AlreadyFunded: CONTRACT_ERROR_MESSAGES[5],
+};
+
+/** Translates wallet rejections and Soroban escrow contract error codes into plain words. */
+export function formatTransactionError(err: unknown): string {
+  const raw =
+    typeof err === 'string'
+      ? err
+      : err instanceof Error
+        ? err.message
+        : err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string'
+          ? (err as { message: string }).message
+          : '';
+
+  if (err && typeof err === 'object' && 'code' in err) {
+    const code = Number((err as { code: unknown }).code);
+    if (CONTRACT_ERROR_MESSAGES[code]) return CONTRACT_ERROR_MESSAGES[code];
+  }
+
+  if (/user rejected|rejected by user|user declined|declined|cancelled|canceled|denied|refused/i.test(raw)) {
+    return 'Transaction was cancelled in your wallet — nothing was submitted.';
+  }
+
+  const codeMatch = raw.match(/(?:Error\s*\(\s*Contract\s*,\s*#(\d+)\s*\)|ContractError\s*\(\s*(\d+)\s*\)|#(\d+)\b)/i);
+  if (codeMatch) {
+    const code = Number(codeMatch[1] ?? codeMatch[2] ?? codeMatch[3]);
+    if (CONTRACT_ERROR_MESSAGES[code]) return CONTRACT_ERROR_MESSAGES[code];
+  }
+
+  for (const [name, friendly] of Object.entries(CONTRACT_NAME_MESSAGES)) {
+    if (new RegExp(`\\b${name}\\b`, 'i').test(raw)) return friendly;
+  }
+
+  return raw.trim() || 'Transaction failed before confirmation. Please try again.';
+}
+
+/** Block explorer URL for a Stellar transaction hash on the configured network. */
+export function txExplorerUrl(hash: string, network: string = PLATFORM.network): string {
+  const segment = network === 'mainnet' || network === 'public' ? 'public' : 'testnet';
+  return `https://stellar.expert/explorer/${segment}/tx/${encodeURIComponent(hash)}`;
+}
+
+export interface TransactionHelpers {
+  /** Call once the wallet has signed and broadcast the transaction so the toast moves to `pending`. */
+  onSigned: (txHash?: string) => void;
+}
+
+export type TransactionSubmitFn<T = unknown> = (
+  helpers: TransactionHelpers,
+) => Promise<{ hash?: string; result?: T } | string | void>;
+
+export interface TransactionController<T = unknown> {
+  status: TransactionStatus;
+  hash: string | null;
+  error: string | null;
+  explorerUrl: string | null;
+  execute: (overrideFn?: TransactionSubmitFn<T>) => Promise<void>;
+  reset: () => void;
+}
+
+/**
+ * Tracks an on-chain transaction through `idle | signing | pending | success | error`.
+ */
+export function useTransaction<T = unknown>(defaultSubmit?: TransactionSubmitFn<T>): TransactionController<T> {
+  const [status, setStatus] = useState<TransactionStatus>('idle');
+  const [hash, setHash] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const reset = useCallback(() => {
+    setStatus('idle');
+    setHash(null);
+    setError(null);
+  }, []);
+
+  const execute = useCallback(
+    async (overrideFn?: TransactionSubmitFn<T>) => {
+      const fn = overrideFn ?? defaultSubmit;
+      if (!fn) return;
+      setStatus('signing');
+      setHash(null);
+      setError(null);
+      try {
+        const out = await fn({
+          onSigned: (txHash?: string) => {
+            if (txHash) setHash(txHash);
+            setStatus('pending');
+          },
+        });
+        if (typeof out === 'string' && out) {
+          setHash(out);
+        } else if (out && typeof out === 'object' && 'hash' in out && typeof out.hash === 'string') {
+          setHash(out.hash);
+        }
+        setStatus('success');
+      } catch (err) {
+        setError(formatTransactionError(err));
+        setStatus('error');
+      }
+    },
+    [defaultSubmit],
+  );
+
+  const explorerUrl = hash ? txExplorerUrl(hash) : null;
+
+  return { status, hash, error, explorerUrl, execute, reset };
+}
+
+const TX_STATUS_COPY: Record<Exclude<TransactionStatus, 'idle'>, { badge: string; tone: string; title: string }> = {
+  signing: {
+    badge: 'Signing',
+    tone: 'warn',
+    title: 'Waiting for wallet signature…',
+  },
+  pending: {
+    badge: 'Submitted',
+    tone: 'info',
+    title: `Confirming on ${PLATFORM.chain} ${PLATFORM.network}…`,
+  },
+  success: {
+    badge: 'Confirmed',
+    tone: 'success',
+    title: `Confirmed on ${PLATFORM.chain} ${PLATFORM.network}.`,
+  },
+  error: {
+    badge: 'Failed',
+    tone: 'danger',
+    title: 'Transaction failed',
+  },
+};
+
+export function TransactionToast({
+  tx,
+  label,
+}: {
+  tx: TransactionController<unknown>;
+  label?: string;
+}) {
+  const reducedMotion = Boolean(useReducedMotion());
+
+  if (tx.status === 'idle') return null;
+
+  const meta = TX_STATUS_COPY[tx.status];
+  const shortHash = tx.hash && tx.hash.length > 14 ? `${tx.hash.slice(0, 6)}…${tx.hash.slice(-6)}` : tx.hash;
+
+  return createPortal(
+    <AnimatePresence>
+      <motion.div
+        className="toast tx-toast"
+        role={tx.status === 'error' ? 'alert' : 'status'}
+        aria-live={tx.status === 'error' ? 'assertive' : 'polite'}
+        data-tx-status={tx.status}
+        data-reduced-motion={reducedMotion ? 'true' : 'false'}
+        initial={reducedMotion ? false : { opacity: 0, y: 12, x: '-50%', scale: 0.96 }}
+        animate={reducedMotion ? { opacity: 1, x: '-50%' } : { opacity: 1, y: 0, x: '-50%', scale: 1 }}
+        exit={reducedMotion ? { opacity: 0, x: '-50%' } : { opacity: 0, y: 8, x: '-50%', scale: 0.98 }}
+        transition={reducedMotion ? { duration: 0 } : { duration: 0.22, ease: EASE }}
+        style={{ flexWrap: 'wrap', gap: 10, maxWidth: 'min(520px, calc(100vw - 32px))' }}
+      >
+        <Chip tone={meta.tone}>{meta.badge}</Chip>
+        <span style={{ flex: 1, minWidth: 160 }}>
+          {label ? `${label}: ` : ''}
+          {tx.status === 'error' ? tx.error : meta.title}
+        </span>
+        {tx.explorerUrl && shortHash && (
+          <a
+            href={tx.explorerUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="mono"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 3,
+              textDecoration: 'underline',
+              color: 'inherit',
+              fontSize: 'var(--t2)',
+            }}
+          >
+            {shortHash}
+            <ArrowUpRight size={12} />
+          </a>
+        )}
+        <button
+          type="button"
+          className="btn ghost icon sm"
+          aria-label="Dismiss transaction status"
+          onClick={tx.reset}
+          style={{ color: 'inherit' }}
+        >
+          <X size={14} />
+        </button>
+      </motion.div>
+    </AnimatePresence>,
+    document.body,
+  );
+}
+
