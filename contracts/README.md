@@ -11,6 +11,7 @@ request merges. If the issue is withdrawn, they go back to the maintainer.
 | `__constructor(token)` | deployer | Sets the token every bounty is paid in (USDC's Stellar Asset Contract). |
 | `fund(maintainer, repo, issue, amount) -> u64` | maintainer | Moves `amount` into escrow for `repo#issue` and returns the bounty id. One open bounty per issue. |
 | `assign(id, assignee?)` | maintainer | Sets or clears the contributor who will be paid. |
+| `transfer_maintainer(id, new_maintainer)` | current + new maintainer | Transfers control of an open bounty to `new_maintainer` (including future refunds). |
 | `release(id, pull_request)` | maintainer | Pays the assignee and emits a `receipt` event. |
 | `refund(id)` | maintainer | Returns an open bounty to the maintainer. |
 | `get(id) -> Bounty` | — | Reads a bounty. |
@@ -18,7 +19,7 @@ request merges. If the issue is withdrawn, they go back to the maintainer.
 | `token() -> Address` | — | The payment token. |
 
 A bounty is `Open` until it is `Paid` or `Refunded`; both are final. Nothing can move funds
-except the maintainer who funded the bounty.
+except the maintainer who controls the bounty.
 
 ### Events
 
@@ -26,6 +27,7 @@ except the maintainer who funded the bounty.
 | --- | --- |
 | `funded`, `id` | `repo`, `issue`, `amount` |
 | `assigned`, `id` | `assignee` |
+| `transferred`, `id` | `old_maintainer`, `new_maintainer` |
 | `receipt`, `id`, `contributor` | `repo`, `issue`, `pull_request`, `amount` |
 | `refunded`, `id` | `amount` |
 
