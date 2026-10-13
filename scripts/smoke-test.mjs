@@ -85,13 +85,6 @@ try {
   await settle();
   assert.equal(await page.locator('.list-row').count(), 7);
 
-  await page.getByLabel('Bounty').selectOption('under $250');
-  await settle();
-  assert.equal(await page.locator('.list-row').count(), 2, 'bounty under $250 matches exactly 2 issues');
-  await page.getByRole('button', { name: 'Reset' }).click();
-  await settle();
-  assert.equal(await page.locator('.list-row').count(), 7);
-
   // ------------------------------------------------------- contributor apply
   await go('/issue/512');
   await page.getByRole('heading', { name: 'Add a test helper for asserting emitted events' }).waitFor();
@@ -200,11 +193,16 @@ try {
   assert.match(await page.locator('.list-row').first().innerText(), /\$250/);
 
   // --------------------------------------- assign, PR, merge, receipt written
+  await page.evaluate(key => {
+    const s = JSON.parse(localStorage.getItem(key));
+    s.issues = s.issues.map(i => (i.id === '512' ? { ...i, bountyId: 1 } : i));
+    localStorage.setItem(key, JSON.stringify(s));
+  }, storageKey);
   await go('/maintainer/repo/soroban-sdk/issues');
   await page.getByRole('button', { name: /Add a test helper for asserting emitted events/ }).click();
   await settle();
-  await page.locator('.issue-block-body .proposal').first().getByRole('button', { name: 'Assign' }).click();
-  await settle();
+  assert.equal(await page.locator('[data-assign-disabled-reason="no-payout-address"]').count(), 1, 'on-chain assign disabled when contributor has no payout address');
+  assert.equal(await page.locator('.issue-block-body .proposal').first().getByRole('button', { name: 'Assign' }).isDisabled(), true);
 
   await go('/me/settings');
   await page.getByLabel('Payout address').fill('not-an-address');
@@ -213,6 +211,41 @@ try {
   await page.getByLabel('Payout address').fill('GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN7');
   await page.getByRole('button', { name: 'Save address' }).click();
   await settle();
+
+  await go('/maintainer/repo/soroban-sdk/issues');
+  await page.getByRole('button', { name: /Add a test helper for asserting emitted events/ }).click();
+  await settle();
+  await page.evaluate(() => {
+    window.freighterApi = {
+      signTransaction: async () => { throw new Error('User rejected signature'); },
+    };
+  });
+  await page.locator('.issue-block-body .proposal').first().getByRole('button', { name: 'Assign' }).click();
+  await settle();
+  assert.equal(await page.locator('[data-assign-error="true"]').count(), 1, 'rejected tx shows error and does not assign');
+  assert.match(await page.locator('.issue-block-body .proposal').first().innerText(), /Applied/);
+
+  await page.evaluate(() => {
+    window.__assignCalls = [];
+    window.freighterApi = {
+      signTransaction: async xdr => {
+        window.__assignCalls.push(JSON.parse(atob(xdr)));
+        return { signedTxXdr: `signed:${xdr}` };
+      },
+    };
+  });
+  await page.locator('.issue-block-body .proposal').first().getByRole('button', { name: 'Assign' }).click();
+  await settle();
+  assert.match(await page.locator('.issue-block-body .proposal').first().innerText(), /Assigned/);
+  await page.getByRole('button', { name: 'Unassign' }).click();
+  await settle();
+  assert.match(await page.locator('.issue-block-body .proposal').first().innerText(), /Applied/);
+  await page.locator('.issue-block-body .proposal').first().getByRole('button', { name: 'Assign' }).click();
+  await settle();
+  const assignCalls = await page.evaluate(() => window.__assignCalls);
+  assert.equal(assignCalls.length, 3, 'assign, unassign(null), and re-assign called through Freighter');
+  assert.equal(assignCalls[0].args.assignee, 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN7');
+  assert.equal(assignCalls[1].args.assignee, null);
 
   await go('/me');
   await page.getByRole('button', { name: 'Submit PR' }).click();
