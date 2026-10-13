@@ -88,6 +88,29 @@ export function ContributorWork() {
 }
 
 export function ContributorReceipts() {
+  const exportReceiptsCsv = () => {
+    const headers = ['id', 'issueId', 'repoId', 'contributor', 'amount', 'pr', 'paidAt', 'address'];
+    const rows = state.receipts.map(r => [
+      r.id,
+      r.issueId,
+      r.repoId,
+      r.contributor,
+      r.amount,
+      r.pr,
+      r.paidAt,
+      r.address ?? '',
+    ]);
+    const csvContent = [headers.join(','), ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `receipts-${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const { state } = useApp();
   const me = state.session.contributor;
   const mine = state.receipts.filter(r => r.contributor === me);
