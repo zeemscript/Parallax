@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
@@ -178,17 +178,71 @@ export function Segmented<T extends string>({
   );
 }
 
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 export function Modal({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
+  const titleId = useId();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const openerRef = useRef<HTMLElement | null>(
+    typeof document !== 'undefined' ? (document.activeElement as HTMLElement | null) : null,
+  );
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const dialog = dialogRef.current;
+    const root = document.getElementById('root');
+    if (root) root.setAttribute('inert', '');
+
+    if (dialog) {
+      const active = document.activeElement as HTMLElement | null;
+      if (!active || !dialog.contains(active)) {
+        const first = dialog.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
+        (first ?? dialog).focus();
+      }
+    }
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onCloseRef.current();
+        return;
+      }
+      if (e.key === 'Tab' && dialog) {
+        const nodes = Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+        if (nodes.length === 0) {
+          e.preventDefault();
+          dialog.focus();
+          return;
+        }
+        const first = nodes[0];
+        const last = nodes[nodes.length - 1];
+        const active = document.activeElement as HTMLElement | null;
+        if (e.shiftKey) {
+          if (!active || !dialog.contains(active) || active === first) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else if (!active || !dialog.contains(active) || active === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
     document.addEventListener('keydown', onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
+    const opener = openerRef.current;
     return () => {
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = prev;
+      if (root) root.removeAttribute('inert');
+      if (opener && typeof opener.focus === 'function') {
+        opener.focus();
+      }
     };
-  }, [onClose]);
+  }, []);
 
   return createPortal(
     <motion.div
@@ -200,17 +254,19 @@ export function Modal({ title, children, onClose }: { title: string; children: R
       onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}
     >
       <motion.div
+        ref={dialogRef}
         className="modal"
         role="dialog"
         aria-modal="true"
-        aria-label={title}
+        aria-labelledby={titleId}
+        tabIndex={-1}
         initial={{ opacity: 0, y: 10, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 6, scale: 0.99 }}
         transition={{ duration: 0.22, ease: EASE }}
       >
         <div className="modal-head">
-          <h2>{title}</h2>
+          <h2 id={titleId}>{title}</h2>
           <button className="btn ghost icon sm" aria-label="Close dialog" onClick={onClose}>
             <X size={15} />
           </button>
