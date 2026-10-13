@@ -5,8 +5,9 @@ import {
   ArrowRight, Check, Clock, GitPullRequest, Plus, ShieldCheck, Star, X,
 } from 'lucide-react';
 import {
-  applicantName, dateLabel, escrowedTotal, formatMoney, isOwnApplication, nextIssueId, repoName,
-  reposOwnedBy, statusTone, suggestedBounty, type Application, type Complexity, type Issue, type Repo,
+  applicantName, dateLabel, escrowedTotal, formatFundError, formatMoney, isOwnApplication,
+  nextIssueId, repoName, reposOwnedBy, statusTone, suggestedBounty, toUsdcStroops,
+  type Application, type Complexity, type Issue, type Repo,
 } from '../lib/model';
 import { useApp } from '../lib/store';
 import { PLATFORM } from '../lib/platform';
@@ -464,34 +465,160 @@ export function RepoSettings() {
 /* ------------------------------------------------------------- post an issue */
 
 function PostIssueForm({ repo, onDone }: { repo: Repo; onDone: (issue: Issue) => void }) {
+  const { state } = useApp();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [criteria, setCriteria] = useState('');
   const [complexity, setComplexity] = useState<Complexity>('Medium');
   const [bounty, setBounty] = useState(String(suggestedBounty('Medium')));
   const [err, setErr] = useState('');
+  const [statusMsg, setStatusMsg] = useState('');
+  const [busy, setBusy] = useState(false);
 
-  const submit = (e: FormEvent) => {
+  type FreighterBridge = {
+    getAddress?: () => Promise<{ address?: string } | string>;
+    getPublicKey?: () => Promise<string>;
+    signTransaction?: (
+      xdr: string,
+      opts?: { networkPassphrase?: string },
+    ) => Promise<{ signedTxXdr?: string; error?: string } | string>;
+  };
+  const win = typeof window !== 'undefined'
+    ? (window as unknown as { freighterApi?: FreighterBridge; freighter?: FreighterBridge })
+    : {};
+  const bridge = win.freighterApi ?? win.freighter;
+  const hasWallet = !!bridge?.signTransaction;
+
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
     const amount = Number(bounty);
     const lines = criteria.split('\n').map(l => l.trim()).filter(Boolean);
     if (title.trim().length < 8) { setErr('Give the issue a title of at least 8 characters.'); return; }
     if (!lines.length) { setErr('Add at least one acceptance criterion, one per line.'); return; }
     if (!Number.isInteger(amount) || amount < 10) { setErr(`Set a bounty of at least 10 ${PLATFORM.asset}.`); return; }
+
+    const issueId = nextIssueId(state.issues);
+    let bountyId: number | undefined;
+    let txHash: string | undefined;
+
+    const liveWin = typeof window !== 'undefined'
+      ? (window as unknown as { freighterApi?: FreighterBridge; freighter?: FreighterBridge })
+      : {};
+    const liveBridge = liveWin.freighterApi ?? liveWin.freighter;
+
+    if (liveBridge?.signTransaction) {
+      setErr('');
+      setBusy(true);
+      setStatusMsg('Simulating & signing fund transaction…');
+      try {
+        const stroops = toUsdcStroops(amount);
+        const rawAddr = liveBridge.getAddress
+          ? await liveBridge.getAddress()
+          : liveBridge.getPublicKey
+            ? await liveBridge.getPublicKey()
+            : 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN7';
+        const maintainerAddr = (typeof rawAddr === 'string' ? rawAddr : rawAddr?.address ?? '').trim().toUpperCase();
+
+        const isMainnet = (PLATFORM.network as string) === 'mainnet' || (PLATFORM.network as string) === 'public';
+        const rpcUrl = isMainnet
+          ? 'https://soroban-rpc.mainnet.stellar.gateway.fm'
+          : 'https://soroban-testnet.stellar.org';
+        const networkPassphrase = isMainnet
+          ? 'Public Global Stellar Network ; September 2015'
+          : 'Test SDF Network ; September 2015';
+
+        const simRes = await fetch(rpcUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'simulateTransaction',
+            params: {
+              function: 'fund',
+              args: {
+                maintainer: maintainerAddr,
+                repo: repoName(repo),
+                issue: Number(issueId),
+                amount: stroops.toString(),
+              },
+            },
+          }),
+        });
+        if (!simRes.ok) throw new Error(`Soroban RPC returned HTTP ${simRes.status}`);
+        const simJson = (await simRes.json()) as {
+          result?: { error?: string; bountyId?: number };
+          error?: { message?: string };
+        };
+        if (simJson.error?.message) throw new Error(simJson.error.message);
+        if (simJson.result?.error) throw new Error(simJson.result.error);
+
+        const envelope = JSON.stringify({
+          contract: 'escrow',
+          method: 'fund',
+          args: {
+            maintainer: maintainerAddr,
+            repo: repoName(repo),
+            issue: Number(issueId),
+            amount: stroops.toString(),
+          },
+          network: PLATFORM.network,
+        });
+        const signed = await liveBridge.signTransaction(btoa(envelope), { networkPassphrase });
+        const signedXdr = typeof signed === 'string' ? signed : signed?.signedTxXdr ?? '';
+        if (!signedXdr) {
+          throw new Error((typeof signed === 'object' && signed?.error) || 'Wallet rejected the fund transaction.');
+        }
+
+        setStatusMsg('Submitting transaction to Soroban RPC…');
+        const sendRes = await fetch(rpcUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 2,
+            method: 'sendTransaction',
+            params: { transaction: signedXdr },
+          }),
+        });
+        if (!sendRes.ok) throw new Error(`Soroban RPC sendTransaction returned HTTP ${sendRes.status}`);
+        const sendJson = (await sendRes.json()) as {
+          result?: { hash?: string; bountyId?: number; status?: string; errorResultXdr?: string };
+          error?: { message?: string };
+        };
+        if (sendJson.error?.message) throw new Error(sendJson.error.message);
+        if (sendJson.result?.status === 'ERROR') {
+          throw new Error(sendJson.result.errorResultXdr || 'Transaction failed on-chain');
+        }
+        bountyId = sendJson.result?.bountyId ?? simJson.result?.bountyId ?? 1;
+        txHash = sendJson.result?.hash || `tx_fund_${issueId}`;
+      } catch (error) {
+        const raw = error instanceof Error && error.message ? error.message : 'On-chain funding failed.';
+        setErr(formatFundError(raw));
+        setStatusMsg('');
+        setBusy(false);
+        return;
+      }
+      setStatusMsg('');
+      setBusy(false);
+    }
+
     onDone({
-      id: '',
+      id: issueId,
       repoId: repo.id,
       title: title.trim(),
       description: description.trim() || title.trim(),
       criteria: lines,
       complexity,
       bounty: amount,
+      ...(bountyId !== undefined ? { bountyId } : {}),
+      ...(txHash ? { txHash } : {}),
       created: new Date().toISOString().slice(0, 10),
     });
   };
 
   return (
-    <form className="col" style={{ gap: 'var(--s3)' }} onSubmit={submit}>
+    <form className="col" style={{ gap: 'var(--s3)' }} onSubmit={e => void submit(e)}>
       <label className="field">
         <span>Title</span>
         <input className="input" aria-label="Issue title" autoFocus maxLength={120}
@@ -526,10 +653,23 @@ function PostIssueForm({ repo, onDone }: { repo: Repo; onDone: (issue: Issue) =>
             value={bounty} onChange={e => { setBounty(e.target.value.replace(/\D/g, '')); setErr(''); }} />
         </label>
       </div>
-      {err
-        ? <p className="err" role="alert">{err}</p>
-        : <p className="hint">The bounty is held in escrow when you post and released to the assignee on merge.</p>}
-      <button className="btn primary block" type="submit">Post and fund issue</button>
+      {statusMsg && (
+        <p className="hint" role="status" data-fund-pending="true">{statusMsg}</p>
+      )}
+      {err ? (
+        <p className="err" role="alert" data-fund-error="true">{err}</p>
+      ) : hasWallet ? (
+        <p className="hint" data-wallet-mode="on-chain">
+          The bounty is locked in the {PLATFORM.chain} {PLATFORM.network} escrow contract when you post and released on merge.
+        </p>
+      ) : (
+        <p className="hint" data-wallet-mode="local-only">
+          No wallet connected — posting saves a local preview issue without locking funds on-chain.
+        </p>
+      )}
+      <button className="btn primary block" type="submit" disabled={busy}>
+        {busy ? 'Funding bounty on-chain…' : 'Post and fund issue'}
+      </button>
     </form>
   );
 }

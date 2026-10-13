@@ -178,6 +178,42 @@ try {
 
   // ------------------------------------------------- post and fund an issue
   await page.getByRole('button', { name: 'Post an issue' }).click();
+  assert.equal(await page.locator('[data-wallet-mode="local-only"]').count(), 1, 'with no wallet connected, explains local-only behaviour');
+
+  let fundSimError = 'Error(Contract, #5)';
+  let simulatedFundArgs = null;
+  await page.route('https://soroban-testnet.stellar.org/**', async route => {
+    const req = JSON.parse(route.request().postData() || '{}');
+    if (req.method === 'simulateTransaction') {
+      simulatedFundArgs = req.params?.args;
+      if (fundSimError) {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ jsonrpc: '2.0', id: 1, result: { error: fundSimError } }),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, result: { bountyId: 7 } }),
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ jsonrpc: '2.0', id: 2, result: { hash: 'txhash_funded_844', bountyId: 7, status: 'PENDING' } }),
+    });
+  });
+
+  await page.evaluate(() => {
+    window.freighterApi = {
+      getAddress: async () => ({ address: 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN7' }),
+      signTransaction: async xdr => ({ signedTxXdr: `signed:${xdr}` }),
+    };
+  });
   await page.getByLabel('Issue title').fill('Add shell completions for zsh and fish');
   await page.getByLabel('Acceptance criteria').fill('Generate completions for zsh\nGenerate completions for fish');
   await page.getByLabel('Issue complexity').selectOption('Trivial');
@@ -185,7 +221,18 @@ try {
   await page.getByLabel('Bounty').fill('250');
   await page.getByRole('button', { name: 'Post and fund issue' }).click();
   await settle();
+  assert.equal(await page.locator('[data-fund-error="true"]').count(), 1, 'AlreadyFunded contract error shown in plain words');
+  assert.match(await page.locator('[data-fund-error="true"]').innerText(), /already has an open bounty funded on-chain/);
+  assert.equal(await page.getByRole('button', { name: /Add shell completions/ }).count(), 0, 'nothing added to local state on failure');
+
+  fundSimError = '';
+  await page.getByRole('button', { name: 'Post and fund issue' }).click();
+  await settle();
+  await page.unroute('https://soroban-testnet.stellar.org/**');
+  assert.equal(simulatedFundArgs?.amount, '2500000000', '250 USDC converted to 7 decimal places');
   assert.ok(await page.getByRole('button', { name: /Add shell completions/ }).isVisible(), 'posted issue is listed');
+  await go('/issue/844');
+  assert.equal(await page.locator('[data-funding-tx-link="true"]').count(), 1, 'issue page links the funding transaction on a block explorer');
   await go('/explore');
   await page.getByLabel('Search', { exact: true }).fill('shell completions');
   await settle();
