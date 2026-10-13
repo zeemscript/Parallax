@@ -15,6 +15,7 @@ request merges. If the issue is withdrawn, they go back to the maintainer.
 | `refund(id)` | maintainer | Returns an open bounty to the maintainer. |
 | `get(id) -> Bounty` | — | Reads a bounty. |
 | `bounty_for(repo, issue) -> Option<u64>` | — | Id of the open bounty on an issue. |
+| `open_bounties(maintainer) -> Vec<u64>` | — | Ordered list of open bounty ids funded by `maintainer` (capped at 100 open bounties per maintainer). |
 | `token() -> Address` | — | The payment token. |
 
 A bounty is `Open` until it is `Paid` or `Refunded`; both are final. Nothing can move funds
@@ -41,6 +42,7 @@ portable history of paid work.
 | 3 | `NotOpen` | the bounty is already paid or refunded |
 | 4 | `NotAssigned` | `release` called before `assign` |
 | 5 | `AlreadyFunded` | the issue already has an open bounty |
+| 6 | `TooManyOpenBounties` | maintainer already has 100 open bounties |
 
 ## Build and test
 
