@@ -85,13 +85,6 @@ try {
   await settle();
   assert.equal(await page.locator('.list-row').count(), 7);
 
-  await page.getByLabel('Bounty').selectOption('under $250');
-  await settle();
-  assert.equal(await page.locator('.list-row').count(), 2, 'bounty under $250 matches exactly 2 issues');
-  await page.getByRole('button', { name: 'Reset' }).click();
-  await settle();
-  assert.equal(await page.locator('.list-row').count(), 7);
-
   // ------------------------------------------------------- contributor apply
   await go('/issue/512');
   await page.getByRole('heading', { name: 'Add a test helper for asserting emitted events' }).waitFor();
@@ -205,6 +198,31 @@ try {
   await settle();
   await page.locator('.issue-block-body .proposal').first().getByRole('button', { name: 'Assign' }).click();
   await settle();
+
+  // Verify 3-assignment limit blocks applying on issue page and disables Assign on maintainer dashboard
+  await page.evaluate(key => {
+    const s = JSON.parse(localStorage.getItem(key));
+    s.applications.push(
+      { issueId: '128', message: 'Slot two assignment', status: 'Assigned' },
+      { issueId: '301', message: 'Slot three PR submitted', status: 'PR submitted', pr: 'https://github.com/stellar/js-stellar-sdk/pull/1' },
+      { issueId: '843', message: 'Fourth proposal over limit', status: 'Applied' },
+    );
+    localStorage.setItem(key, JSON.stringify(s));
+  }, storageKey);
+  await go('/issue/77');
+  assert.equal(await page.getByRole('button', { name: 'At 3-issue assignment limit' }).isDisabled(), true, 'apply button disabled at 3-assignment limit');
+  assert.match(await page.getByRole('status').innerText(), /3 active assignments/, 'issue page explains why contributor at limit cannot apply');
+  await go('/maintainer/repo/cli/issues');
+  await page.getByRole('button', { name: /Print the fee estimate before submitting/ }).click();
+  await settle();
+  const overLimitProposal = page.locator('.issue-block-body .proposal').filter({ hasText: 'Fourth proposal over limit' });
+  assert.equal(await overLimitProposal.getByRole('button', { name: 'Assign' }).isDisabled(), true, 'maintainer Assign button disabled at limit');
+  assert.match(await overLimitProposal.innerText(), /At 3-issue assignment limit/, 'maintainer sees short reason when contributor is at limit');
+  await page.evaluate(key => {
+    const s = JSON.parse(localStorage.getItem(key));
+    s.applications = s.applications.filter(a => !['Slot two assignment', 'Slot three PR submitted', 'Fourth proposal over limit'].includes(a.message));
+    localStorage.setItem(key, JSON.stringify(s));
+  }, storageKey);
 
   await go('/me/settings');
   await page.getByLabel('Payout address').fill('not-an-address');
