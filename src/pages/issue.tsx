@@ -4,7 +4,7 @@ import { ArrowUpRight, Check, GitPullRequest, Lock } from 'lucide-react';
 import { applicantName, formatMoney, isOwnApplication, repoName, statusTone } from '../lib/model';
 import { PLATFORM } from '../lib/platform';
 import { useApp } from '../lib/store';
-import { Avatar, Chip, Crumbs, Empty, ModalHost, Page } from '../components/ui';
+import { Avatar, Chip, Crumbs, Empty, Markdown, ModalHost, Page } from '../components/ui';
 
 export function IssuePage() {
   const { issueId } = useParams();
@@ -69,7 +69,7 @@ export function IssuePage() {
 
             <section className="prose">
               <h2>Description</h2>
-              <p>{issue.description}</p>
+              <Markdown text={issue.description} />
               <h2>Acceptance criteria</h2>
               <ul className="criteria">
                 {issue.criteria.map(c => <li key={c}><Check size={13} /><span>{c}</span></li>)}
@@ -96,7 +96,7 @@ export function IssuePage() {
                           {p.status}
                         </Chip>
                       </div>
-                      <p className="muted proposal-body">{p.message}</p>
+                      <Markdown className="muted proposal-body" text={p.message} />
                     </div>
                   ))}
                 </div>
