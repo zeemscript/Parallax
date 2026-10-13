@@ -85,6 +85,13 @@ try {
   await settle();
   assert.equal(await page.locator('.list-row').count(), 7);
 
+  await page.getByLabel('Bounty').selectOption('under $250');
+  await settle();
+  assert.equal(await page.locator('.list-row').count(), 2, 'bounty under $250 matches exactly 2 issues');
+  await page.getByRole('button', { name: 'Reset' }).click();
+  await settle();
+  assert.equal(await page.locator('.list-row').count(), 7);
+
   // ------------------------------------------------------- contributor apply
   await go('/issue/512');
   await page.getByRole('heading', { name: 'Add a test helper for asserting emitted events' }).waitFor();

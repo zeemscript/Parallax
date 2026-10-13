@@ -51,7 +51,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32v1-none
-          components: clippy, rustfmt
+          components: clippy, rustfmt, llvm-tools-preview
+
+      - uses: taiki-e/install-action@cargo-llvm-cov
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -63,8 +65,18 @@ jobs:
       - name: Lint
         run: cargo clippy --all-targets -- -D warnings
 
-      - name: Test
-        run: cargo test
+      - name: Test and measure coverage
+        run: |
+          cargo llvm-cov --all-targets --summary-only --ignore-filename-regex 'test\.rs$' --fail-under-lines 90
+          cargo llvm-cov report --html --output-dir target/llvm-cov/html --ignore-filename-regex 'test\.rs$'
+
+      - name: Upload contract coverage HTML report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: contract-coverage-html
+          path: contracts/target/llvm-cov/html/
+          if-no-files-found: error
 
       # soroban-sdk 28 needs Stellar CLI 25.2+ to build. rust-cache keeps the binary between runs.
       - name: Install Stellar CLI
