@@ -16,7 +16,7 @@ import { Landing } from './pages/landing';
 import { Explore } from './pages/explore';
 import { IssuePage } from './pages/issue';
 import { ContributorLogin, MaintainerLogin } from './pages/auth';
-import { ContributorWork, ContributorReceipts, ContributorSettings } from './pages/contributor';
+import { ContributorWork, ContributorReceipts, ContributorSettings, ContributorLeaderboard } from './pages/contributor';
 import { MaintainerHome, MaintainerSubmit, RepoDashboard, RepoIssues, RepoSettings } from './pages/maintainer';
 
 /* ------------------------------------------------------------------ theme */
@@ -113,6 +113,7 @@ function PublicShell({ children }: { children: ReactNode }) {
     { to: '/explore', label: 'Explore', end: true },
     { to: '/explore/repos', label: 'Repositories' },
     { to: '/explore/orgs', label: 'Organizations' },
+    { to: '/leaderboard', label: 'Leaderboard' },
   ];
 
   return (
@@ -367,6 +368,7 @@ function Routed() {
       <Route path="/explore/repos" element={<PublicShell><Explore tab="repos" /></PublicShell>} />
       <Route path="/explore/orgs" element={<PublicShell><Explore tab="orgs" /></PublicShell>} />
       <Route path="/issue/:issueId" element={<PublicShell><IssuePage /></PublicShell>} />
+      <Route path="/leaderboard" element={<PublicShell><ContributorLeaderboard /></PublicShell>} />
 
       <Route path="/login" element={<ContributorLogin />} />
       <Route path="/maintainer/login" element={<MaintainerLogin />} />
