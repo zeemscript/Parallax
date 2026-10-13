@@ -49,6 +49,7 @@ try {
   assert.ok(await page.locator('.navpill').getByRole('link', { name: 'List your repo' }).isVisible(),
     'top nav says List your repo');
   assert.equal(await page.getByText(/\bwave\b/i).count(), 0, 'no wave wording left on the landing page');
+  assert.ok(await page.locator('.foot a[href*="stellar.expert/explorer/testnet/contract/"]').isVisible(), 'footer links to the escrow contract on testnet');
 
   await page.getByRole('link', { name: /Explore issues/ }).first().click();
   await page.waitForURL('**/explore');

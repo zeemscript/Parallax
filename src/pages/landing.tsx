@@ -5,8 +5,8 @@ import {
   ArrowRight, ArrowUpRight, Check, ChevronDown, GitMerge, GitPullRequest, Lock,
   ReceiptText, ShieldCheck, Sparkles,
 } from 'lucide-react';
-import { escrowedTotal, formatCount, formatMoney, relativeDate, repoName, suggestedBounty } from '../lib/model';
-import { PLATFORM } from '../lib/platform';
+import { escrowedTotal, formatCount, formatMoney, relativeDate, repoName, shortAddress, suggestedBounty } from '../lib/model';
+import { contractExplorerUrl, PLATFORM } from '../lib/platform';
 import { useApp } from '../lib/store';
 import { Avatar, Chip, EASE, Item, Stagger } from '../components/ui';
 import {
@@ -463,7 +463,18 @@ export function Landing() {
           <span className="dim">
             {PLATFORM.name} — {PLATFORM.tagline.toLowerCase()}. Preview: no GitHub, wallet, or funds are connected yet.
           </span>
-          <div className="row" style={{ gap: 14 }}>
+          <div className="row wrap" style={{ gap: 14 }}>
+            {PLATFORM.escrowContractId && (
+              <a
+                className="dim mono"
+                href={contractExplorerUrl(PLATFORM.escrowContractId, PLATFORM.network)}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`Escrow contract on ${PLATFORM.chain} ${PLATFORM.network}`}
+              >
+                {PLATFORM.network} · {shortAddress(PLATFORM.escrowContractId)}
+              </a>
+            )}
             <Link className="dim" to="/explore">Explore</Link>
             <Link className="dim" to="/maintainer/login">List your repo</Link>
           </div>
