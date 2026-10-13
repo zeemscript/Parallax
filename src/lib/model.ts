@@ -106,8 +106,14 @@ export function relativeDate(date: string, now = new Date()): string {
 
 export const repoName = (repo: Repo) => `${repo.org}/${repo.name}`;
 
+export const MAX_CONCURRENT_ASSIGNMENTS = 3;
+
 export const isOwnApplication = (a: Application) => !a.applicant;
 export const applicantName = (a: Application, profile: string) => a.applicant ?? profile;
+
+/** Count of issues currently in Assigned or PR submitted for a given applicant (undefined = signed-in contributor). */
+export const activeAssignmentsFor = (applications: Application[], applicant?: string) =>
+  applications.filter(a => a.applicant === applicant && ['Assigned', 'PR submitted'].includes(a.status)).length;
 
 export const statusTone = (status: ApplicationStatus) =>
   status === 'Paid' ? 'ok' : status === 'Rejected' ? 'bad' : status === 'Applied' ? '' : 'warn';
