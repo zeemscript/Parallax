@@ -8,7 +8,8 @@
 #![no_std]
 
 use soroban_sdk::{
-    contract, contracterror, contractevent, contractimpl, contracttype, token, Address, Env, String,
+    contract, contracterror, contractevent, contractimpl, contracttype, token, Address, Env,
+    String, Vec,
 };
 
 #[contracttype]
@@ -44,6 +45,7 @@ pub enum Error {
     NotOpen = 3,
     NotAssigned = 4,
     AlreadyFunded = 5,
+    TooManyOpenBounties = 6,
 }
 
 #[contracttype]
@@ -55,6 +57,8 @@ enum Key {
     Bounty(u64),
     /// Guards against funding the same issue twice while one is still open.
     Issue(String, u32),
+    /// Ordered list of open bounty ids funded by a maintainer.
+    MaintainerOpen(Address),
 }
 
 /// Emitted when a bounty is funded.
@@ -99,6 +103,8 @@ pub struct Refunded {
 /// Bounties can stay open for weeks, so keep their entries alive for roughly a year.
 const BUMP_THRESHOLD: u32 = 518_400; // ~30 days of 5s ledgers
 const BUMP_TO: u32 = 6_307_200; // ~365 days
+/// Maximum concurrent open bounties tracked per maintainer in a single storage vector.
+pub const MAX_OPEN_BOUNTIES_PER_MAINTAINER: u32 = 100;
 
 #[contract]
 pub struct Escrow;
@@ -131,6 +137,15 @@ impl Escrow {
         if env.storage().persistent().has(&issue_key) {
             return Err(Error::AlreadyFunded);
         }
+        let maintainer_key = Key::MaintainerOpen(maintainer.clone());
+        let mut open_ids: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&maintainer_key)
+            .unwrap_or_else(|| Vec::new(&env));
+        if open_ids.len() >= MAX_OPEN_BOUNTIES_PER_MAINTAINER {
+            return Err(Error::TooManyOpenBounties);
+        }
 
         token::Client::new(&env, &Self::token(env.clone())).transfer(
             &maintainer,
@@ -160,6 +175,11 @@ impl Escrow {
         env.storage()
             .persistent()
             .extend_ttl(&issue_key, BUMP_THRESHOLD, BUMP_TO);
+        open_ids.push_back(id);
+        env.storage().persistent().set(&maintainer_key, &open_ids);
+        env.storage()
+            .persistent()
+            .extend_ttl(&maintainer_key, BUMP_THRESHOLD, BUMP_TO);
 
         Funded {
             id,
@@ -193,6 +213,7 @@ impl Escrow {
         env.storage()
             .persistent()
             .remove(&Key::Issue(bounty.repo.clone(), bounty.issue));
+        Self::remove_maintainer_open(&env, &bounty.maintainer, id);
 
         token::Client::new(&env, &Self::token(env.clone())).transfer(
             &env.current_contract_address(),
@@ -222,6 +243,7 @@ impl Escrow {
         env.storage()
             .persistent()
             .remove(&Key::Issue(bounty.repo.clone(), bounty.issue));
+        Self::remove_maintainer_open(&env, &bounty.maintainer, id);
 
         token::Client::new(&env, &Self::token(env.clone())).transfer(
             &env.current_contract_address(),
@@ -249,6 +271,14 @@ impl Escrow {
         env.storage().persistent().get(&Key::Issue(repo, issue))
     }
 
+    /// Ordered list of open bounty ids funded by `maintainer`.
+    pub fn open_bounties(env: Env, maintainer: Address) -> Vec<u64> {
+        env.storage()
+            .persistent()
+            .get(&Key::MaintainerOpen(maintainer))
+            .unwrap_or_else(|| Vec::new(&env))
+    }
+
     fn open_bounty(env: &Env, id: u64) -> Result<Bounty, Error> {
         let bounty: Bounty = env
             .storage()
@@ -259,6 +289,25 @@ impl Escrow {
             return Err(Error::NotOpen);
         }
         Ok(bounty)
+    }
+
+    fn remove_maintainer_open(env: &Env, maintainer: &Address, id: u64) {
+        let key = Key::MaintainerOpen(maintainer.clone());
+        let current: Vec<u64> = env
+            .storage()
+            .persistent()
+            .get(&key)
+            .unwrap_or_else(|| Vec::new(env));
+        let mut updated = Vec::new(env);
+        for item in current.iter() {
+            if item != id {
+                updated.push_back(item);
+            }
+        }
+        env.storage().persistent().set(&key, &updated);
+        env.storage()
+            .persistent()
+            .extend_ttl(&key, BUMP_THRESHOLD, BUMP_TO);
     }
 
     fn save(env: &Env, id: u64, bounty: &Bounty) {
