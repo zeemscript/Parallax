@@ -96,6 +96,15 @@ pub struct Refunded {
     pub amount: i128,
 }
 
+/// Emitted when a maintainer adds tokens to an open bounty.
+#[contractevent(topics = ["topped_up"])]
+pub struct ToppedUp {
+    #[topic]
+    pub id: u64,
+    pub added: i128,
+    pub total: i128,
+}
+
 /// Bounties can stay open for weeks, so keep their entries alive for roughly a year.
 const BUMP_THRESHOLD: u32 = 518_400; // ~30 days of 5s ledgers
 const BUMP_TO: u32 = 6_307_200; // ~365 days
@@ -169,6 +178,32 @@ impl Escrow {
         }
         .publish(&env);
         Ok(id)
+    }
+
+    /// Add `amount` to an open bounty without changing its assignee.
+    pub fn top_up(env: Env, id: u64, amount: i128) -> Result<(), Error> {
+        let mut bounty = Self::open_bounty(&env, id)?;
+        bounty.maintainer.require_auth();
+        if amount <= 0 {
+            return Err(Error::InvalidAmount);
+        }
+
+        token::Client::new(&env, &Self::token(env.clone())).transfer(
+            &bounty.maintainer,
+            env.current_contract_address(),
+            &amount,
+        );
+
+        bounty.amount += amount;
+        Self::save(&env, id, &bounty);
+
+        ToppedUp {
+            id,
+            added: amount,
+            total: bounty.amount,
+        }
+        .publish(&env);
+        Ok(())
     }
 
     /// Assign the contributor who will be paid on release, or clear with `None`.
