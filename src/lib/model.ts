@@ -32,6 +32,8 @@ export interface Issue {
   /** Fixed bounty in the platform asset, escrowed when the issue is posted. */
   bounty: number;
   created: string;
+  /** Optional upstream GitHub issue number when imported from a GitHub URL. */
+  githubNumber?: number;
 }
 
 export interface Application {
