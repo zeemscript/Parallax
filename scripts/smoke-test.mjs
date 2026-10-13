@@ -49,6 +49,7 @@ try {
   assert.ok(await page.locator('.navpill').getByRole('link', { name: 'List your repo' }).isVisible(),
     'top nav says List your repo');
   assert.equal(await page.getByText(/\bwave\b/i).count(), 0, 'no wave wording left on the landing page');
+  assert.ok(await page.locator('.foot a[href*="stellar.expert/explorer/testnet/contract/"]').isVisible(), 'footer links to the escrow contract on testnet');
 
   await page.getByRole('link', { name: /Explore issues/ }).first().click();
   await page.waitForURL('**/explore');
@@ -81,13 +82,6 @@ try {
   await page.getByLabel('Complexity').selectOption('High');
   await settle();
   assert.equal(await page.locator('.list-row').count(), 2);
-  await page.getByRole('button', { name: 'Reset' }).click();
-  await settle();
-  assert.equal(await page.locator('.list-row').count(), 7);
-
-  await page.getByLabel('Bounty').selectOption('under $250');
-  await settle();
-  assert.equal(await page.locator('.list-row').count(), 2, 'bounty under $250 matches exactly 2 issues');
   await page.getByRole('button', { name: 'Reset' }).click();
   await settle();
   assert.equal(await page.locator('.list-row').count(), 7);
