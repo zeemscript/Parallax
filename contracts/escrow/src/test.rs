@@ -165,3 +165,53 @@ fn release_without_maintainer_auth_fails() {
         &String::from_str(&s.env, "https://github.com/stellar/stellar-cli/pull/1"),
     );
 }
+
+#[test]
+fn top_up_increases_bounty_and_pays_new_total_on_release() {
+    let s = setup();
+    let id = s.escrow.fund(&s.maintainer, &s.repo, &842, &900);
+    s.escrow.assign(&id, &Some(s.contributor.clone()));
+
+    s.escrow.top_up(&id, &350);
+
+    let topped_up = ToppedUp {
+        id,
+        added: 350,
+        total: 1_250,
+    };
+    let events = s.env.events().all();
+    assert!(events
+        .events()
+        .contains(&topped_up.to_xdr(&s.env, &s.escrow.address)));
+
+    let bounty = s.escrow.get(&id);
+    assert_eq!(bounty.amount, 1_250);
+    assert_eq!(bounty.assignee, Some(s.contributor.clone()));
+    assert_eq!(s.usdc.balance(&s.maintainer), 8_750);
+    assert_eq!(s.usdc.balance(&s.escrow.address), 1_250);
+
+    let pr = String::from_str(&s.env, "https://github.com/stellar/stellar-cli/pull/1234");
+    s.escrow.release(&id, &pr);
+    assert_eq!(s.usdc.balance(&s.contributor), 1_250);
+    assert_eq!(s.usdc.balance(&s.escrow.address), 0);
+}
+
+#[test]
+fn top_up_on_closed_bounty_fails_with_not_open() {
+    let s = setup();
+    let id = s.escrow.fund(&s.maintainer, &s.repo, &842, &900);
+    s.escrow.assign(&id, &Some(s.contributor.clone()));
+    let pr = String::from_str(&s.env, "https://github.com/stellar/stellar-cli/pull/1");
+    s.escrow.release(&id, &pr);
+
+    assert_eq!(s.escrow.try_top_up(&id, &100), Err(Ok(Error::NotOpen)));
+}
+
+#[test]
+fn top_up_requires_positive_amount() {
+    let s = setup();
+    let id = s.escrow.fund(&s.maintainer, &s.repo, &842, &900);
+
+    assert_eq!(s.escrow.try_top_up(&id, &0), Err(Ok(Error::InvalidAmount)));
+    assert_eq!(s.escrow.try_top_up(&id, &-25), Err(Ok(Error::InvalidAmount)));
+}

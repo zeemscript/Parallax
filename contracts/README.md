@@ -10,6 +10,7 @@ request merges. If the issue is withdrawn, they go back to the maintainer.
 | --- | --- | --- |
 | `__constructor(token)` | deployer | Sets the token every bounty is paid in (USDC's Stellar Asset Contract). |
 | `fund(maintainer, repo, issue, amount) -> u64` | maintainer | Moves `amount` into escrow for `repo#issue` and returns the bounty id. One open bounty per issue. |
+| `top_up(id, amount)` | maintainer | Moves additional `amount` into an open bounty without changing its assignee. |
 | `assign(id, assignee?)` | maintainer | Sets or clears the contributor who will be paid. |
 | `release(id, pull_request)` | maintainer | Pays the assignee and emits a `receipt` event. |
 | `refund(id)` | maintainer | Returns an open bounty to the maintainer. |
@@ -25,6 +26,7 @@ except the maintainer who funded the bounty.
 | Topics | Data |
 | --- | --- |
 | `funded`, `id` | `repo`, `issue`, `amount` |
+| `topped_up`, `id` | `added`, `total` |
 | `assigned`, `id` | `assignee` |
 | `receipt`, `id`, `contributor` | `repo`, `issue`, `pull_request`, `amount` |
 | `refunded`, `id` | `amount` |
