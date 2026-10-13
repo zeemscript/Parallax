@@ -165,3 +165,48 @@ fn release_without_maintainer_auth_fails() {
         &String::from_str(&s.env, "https://github.com/stellar/stellar-cli/pull/1"),
     );
 }
+
+#[test]
+fn release_stays_within_cpu_and_resource_budget() {
+    let s = setup();
+
+    let id = s.escrow.fund(&s.maintainer, &s.repo, &842, &900);
+    let fund_res = s.env.cost_estimate().resources();
+    assert!(fund_res.instructions > 0);
+    assert!(fund_res.mem_bytes > 0);
+    assert!(fund_res.write_bytes > 0);
+
+    s.escrow.assign(&id, &Some(s.contributor.clone()));
+    let assign_res = s.env.cost_estimate().resources();
+    assert!(assign_res.instructions > 0);
+    assert!(assign_res.write_bytes > 0);
+
+    let pr = String::from_str(&s.env, "https://github.com/stellar/stellar-cli/pull/1234");
+    s.escrow.release(&id, &pr);
+    let release_res = s.env.cost_estimate().resources();
+
+    // Regression ceiling: native host invocation of `release` must stay well under 500,000 CPU
+    // instructions and 2,048 ledger write bytes.
+    const MAX_RELEASE_CPU_INSTRUCTIONS: i64 = 500_000;
+    const MAX_RELEASE_WRITE_BYTES: u32 = 2_048;
+    assert!(
+        release_res.instructions > 0 && release_res.instructions <= MAX_RELEASE_CPU_INSTRUCTIONS,
+        "release instructions {} exceeded budget {}",
+        release_res.instructions,
+        MAX_RELEASE_CPU_INSTRUCTIONS,
+    );
+    assert!(
+        release_res.write_bytes > 0 && release_res.write_bytes <= MAX_RELEASE_WRITE_BYTES,
+        "release write_bytes {} exceeded budget {}",
+        release_res.write_bytes,
+        MAX_RELEASE_WRITE_BYTES,
+    );
+
+    let id2 = s.escrow.fund(&s.maintainer, &s.repo, &843, &500);
+    s.escrow.refund(&id2);
+    let refund_res = s.env.cost_estimate().resources();
+    assert!(refund_res.instructions > 0);
+    assert!(refund_res.instructions <= MAX_RELEASE_CPU_INSTRUCTIONS);
+    assert!(refund_res.write_bytes > 0);
+    assert!(refund_res.write_bytes <= MAX_RELEASE_WRITE_BYTES);
+}
