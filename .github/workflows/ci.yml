@@ -19,6 +19,11 @@ jobs:
 
       - run: npm ci
 
+      - name: Lint and format check
+        run: |
+          npm run lint
+          npm run format:check
+
       - name: Typecheck and build
         run: npm run build
 
