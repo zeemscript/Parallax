@@ -33,6 +33,7 @@ pub struct Bounty {
     pub amount: i128,
     pub assignee: Option<Address>,
     pub status: Status,
+    pub expires_at: u64,
 }
 
 #[contracterror]
@@ -44,6 +45,7 @@ pub enum Error {
     NotOpen = 3,
     NotAssigned = 4,
     AlreadyFunded = 5,
+    InvalidDeadline = 6,
 }
 
 #[contracttype]
@@ -122,10 +124,14 @@ impl Escrow {
         repo: String,
         issue: u32,
         amount: i128,
+        expires_at: u64,
     ) -> Result<u64, Error> {
         maintainer.require_auth();
         if amount <= 0 {
             return Err(Error::InvalidAmount);
+        }
+        if expires_at <= env.ledger().timestamp() {
+            return Err(Error::InvalidDeadline);
         }
         let issue_key = Key::Issue(repo.clone(), issue);
         if env.storage().persistent().has(&issue_key) {
@@ -154,6 +160,7 @@ impl Escrow {
             amount,
             assignee: None,
             status: Status::Open,
+            expires_at,
         };
         Self::save(&env, id, &bounty);
         env.storage().persistent().set(&issue_key, &id);
@@ -216,6 +223,33 @@ impl Escrow {
     pub fn refund(env: Env, id: u64) -> Result<(), Error> {
         let mut bounty = Self::open_bounty(&env, id)?;
         bounty.maintainer.require_auth();
+
+        bounty.status = Status::Refunded;
+        Self::save(&env, id, &bounty);
+        env.storage()
+            .persistent()
+            .remove(&Key::Issue(bounty.repo.clone(), bounty.issue));
+
+        token::Client::new(&env, &Self::token(env.clone())).transfer(
+            &env.current_contract_address(),
+            &bounty.maintainer,
+            &bounty.amount,
+        );
+
+        Refunded {
+            id,
+            amount: bounty.amount,
+        }
+        .publish(&env);
+        Ok(())
+    }
+
+    /// Permissionlessly refund an open bounty to its maintainer after its deadline has passed.
+    pub fn expire(env: Env, id: u64) -> Result<(), Error> {
+        let mut bounty = Self::open_bounty(&env, id)?;
+        if env.ledger().timestamp() < bounty.expires_at {
+            return Err(Error::InvalidDeadline);
+        }
 
         bounty.status = Status::Refunded;
         Self::save(&env, id, &bounty);
