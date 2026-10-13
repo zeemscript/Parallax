@@ -22,7 +22,12 @@ export function Explore({ tab }: { tab: Tab }) {
   const { state } = useApp();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
-  const [q, setQ] = useState(params.get('q') ?? '');
+  const urlQ = params.get('q') ?? '';
+  const [q, setQ] = useState(urlQ);
+
+  useEffect(() => {
+    setQ(urlQ);
+  }, [urlQ]);
   const [level, setLevel] = useState<Complexity | 'Any'>('Any');
   const [lang, setLang] = useState('Any');
   const [sort, setSort] = useState<(typeof SORTS)[number]>('Newest');
@@ -100,10 +105,22 @@ export function Explore({ tab }: { tab: Tab }) {
               aria-label="Search"
               placeholder={tab === 'orgs' ? 'Search organizations…' : tab === 'repos' ? 'Search repositories…' : 'Search issues…'}
               value={q}
-              onChange={e => setQ(e.target.value)}
+              onChange={e => {
+                const nextVal = e.target.value;
+                setQ(nextVal);
+                const nextParams = new URLSearchParams(params);
+                if (nextVal) nextParams.set('q', nextVal);
+                else nextParams.delete('q');
+                setParams(nextParams, { replace: true });
+              }}
             />
             {q && (
-              <button className="btn ghost icon xs" aria-label="Clear search" onClick={() => setQ('')}>
+              <button className="btn ghost icon xs" aria-label="Clear search" onClick={() => {
+                  setQ('');
+                  const nextParams = new URLSearchParams(params);
+                  nextParams.delete('q');
+                  setParams(nextParams, { replace: true });
+                }}>
                 <X size={12} />
               </button>
             )}
