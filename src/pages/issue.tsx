@@ -11,6 +11,7 @@ export function IssuePage() {
   const { state, setState, notify } = useApp();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const [confirmWithdraw, setConfirmWithdraw] = useState(false);
   const [message, setMessage] = useState('');
   const [err, setErr] = useState('');
 
@@ -34,6 +35,15 @@ export function IssuePage() {
     setOpen(false);
     setMessage('');
     notify('Proposal sent. Track it in your workspace.');
+  };
+
+  const withdraw = () => {
+    setState(s => ({
+      ...s,
+      applications: s.applications.filter(a => !(a.issueId === issue.id && isOwnApplication(a) && a.status === 'Applied')),
+    }));
+    setConfirmWithdraw(false);
+    notify('Proposal withdrawn.');
   };
 
   const startApply = () => {
@@ -92,6 +102,11 @@ export function IssuePage() {
                         <strong className="row-title">{applicantName(p, me ?? 'You')}</strong>
                         {isOwnApplication(p) && <Chip>You</Chip>}
                         <span className="spacer" />
+                        {isOwnApplication(p) && p.status === 'Applied' && (
+                          <button className="btn xs ghost" onClick={() => setConfirmWithdraw(true)}>
+                            Withdraw
+                          </button>
+                        )}
                         <Chip tone={statusTone(p.status)}>
                           {p.status}
                         </Chip>
@@ -153,6 +168,11 @@ export function IssuePage() {
         </label>
         {err ? <p className="err" role="alert">{err}</p> : <p className="hint">At least 30 characters.</p>}
         <button className="btn primary block" onClick={submit}>Send proposal</button>
+      </ModalHost>
+
+      <ModalHost open={confirmWithdraw} title="Withdraw your proposal?" onClose={() => setConfirmWithdraw(false)}>
+        <p>Your proposal for <strong>{issue.title}</strong> will be removed. You can apply again later while the issue remains open.</p>
+        <button className="btn danger block" onClick={withdraw}>Withdraw proposal</button>
       </ModalHost>
     </Page>
   );
