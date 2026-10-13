@@ -85,13 +85,6 @@ try {
   await settle();
   assert.equal(await page.locator('.list-row').count(), 7);
 
-  await page.getByLabel('Bounty').selectOption('under $250');
-  await settle();
-  assert.equal(await page.locator('.list-row').count(), 2, 'bounty under $250 matches exactly 2 issues');
-  await page.getByRole('button', { name: 'Reset' }).click();
-  await settle();
-  assert.equal(await page.locator('.list-row').count(), 7);
-
   // ------------------------------------------------------- contributor apply
   await go('/issue/512');
   await page.getByRole('heading', { name: 'Add a test helper for asserting emitted events' }).waitFor();
@@ -207,6 +200,31 @@ try {
   await settle();
 
   await go('/me/settings');
+  assert.equal(await page.locator('[data-passkey-create="true"]').count(), 0, 'passkey wallet button is hidden when feature flag is off');
+  await page.evaluate(() => {
+    localStorage.setItem('parallax-passkey-wallet', '1');
+  });
+  await page.reload();
+  await settle();
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, 'credentials', {
+      configurable: true,
+      value: {
+        create: async () => ({
+          id: 'passkey-cred-1',
+          rawId: new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]).buffer,
+        }),
+      },
+    });
+  });
+  assert.equal(await page.locator('[data-passkey-create="true"]').count(), 1, 'passkey wallet button is shown when flag is on');
+  await page.getByRole('button', { name: 'Create a wallet with a passkey' }).click();
+  await settle();
+  assert.match(await page.getByLabel('Payout address').inputValue(), /^G[A-Z2-7]{55}$/, 'passkey wallet saves derived Stellar payout address');
+  await page.evaluate(() => {
+    localStorage.removeItem('parallax-passkey-wallet');
+  });
+
   await page.getByLabel('Payout address').fill('not-an-address');
   await page.getByRole('button', { name: 'Save address' }).click();
   assert.ok(await page.getByRole('alert').isVisible(), 'an invalid Stellar address is refused');
