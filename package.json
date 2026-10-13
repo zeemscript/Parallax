@@ -29,6 +29,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test:smoke": "node scripts/smoke-test.mjs",
+    "test:lhci": "npx --yes @lhci/cli@0.15.x autorun --config=lighthouserc.json",
     "visual:check": "node scripts/visual-check.mjs",
     "typecheck": "tsc -b --pretty false"
   },

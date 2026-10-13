@@ -164,6 +164,7 @@ the contract fit together.
 | --- | --- |
 | `npm run build` | TypeScript typecheck and production build |
 | `npm run test:smoke -- http://localhost:3000` | End-to-end: every flow, 15 routes at 5 widths, no horizontal overflow |
+| `npm run test:lhci` | Desktop Lighthouse CI budget on `/` and `/explore` (performance ≥ 80, accessibility ≥ 95, best practices ≥ 95); writes reports to `.lighthouseci/` |
 | `cargo test` (in `contracts/`) | Contract unit tests: payouts, refunds, double-pay, auth |
 | `cargo clippy --all-targets -- -D warnings` | Contract lints |
 

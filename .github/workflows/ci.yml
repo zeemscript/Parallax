@@ -39,6 +39,18 @@ jobs:
           path: test-results/
           if-no-files-found: ignore
 
+      - name: Lighthouse CI budget check (/ and /explore)
+        run: npx --yes @lhci/cli@0.15.x autorun --config=lighthouserc.json
+
+      - name: Upload Lighthouse CI report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: lighthouse-report
+          path: .lighthouseci/
+          if-no-files-found: ignore
+
+
   contract:
     runs-on: ubuntu-latest
     timeout-minutes: 45

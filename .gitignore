@@ -8,6 +8,7 @@ dist/
 .final-snapshot/
 _history.py
 test-results/
+.lighthouseci/
 visual-check.png
 contracts/target/
 branch_structure.json
