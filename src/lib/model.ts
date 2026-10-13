@@ -41,6 +41,8 @@ export interface Application {
   pr?: string;
   /** Sample contributor. Absent means the signed-in contributor. */
   applicant?: string;
+  /** True when this proposal was auto-declined because another candidate was assigned. */
+  autoDeclined?: boolean;
 }
 
 /** Record of a released bounty. On-chain once the escrow contract lands; local in the preview. */

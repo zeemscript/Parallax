@@ -176,6 +176,19 @@ try {
   assert.ok(states.includes('Assigned') && states.includes('Rejected'),
     'assigning one candidate declines the rest');
 
+  // unassign -> auto-declined candidate returns to Applied -> assign someone else
+  await page.locator('.issue-block-body .proposal').first().getByRole('button', { name: 'Unassign' }).click();
+  await page.getByRole('button', { name: 'Unassign nadia.dev' }).click();
+  await settle();
+  assert.match(await page.locator('.issue-block-body .proposal').first().innerText(), /Rejected/,
+    'unassigned candidate becomes Rejected');
+  assert.match(await page.locator('.issue-block-body .proposal').nth(1).innerText(), /Applied/,
+    'auto-declined candidate returns to Applied after unassign');
+  await page.locator('.issue-block-body .proposal').nth(1).getByRole('button', { name: 'Assign' }).click();
+  await settle();
+  assert.match(await page.locator('.issue-block-body .proposal').nth(1).innerText(), /Assigned/,
+    'maintainer can assign someone else after unassigning');
+
   // ------------------------------------------------- post and fund an issue
   await page.getByRole('button', { name: 'Post an issue' }).click();
   await page.getByLabel('Issue title').fill('Add shell completions for zsh and fish');
