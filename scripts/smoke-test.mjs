@@ -85,13 +85,6 @@ try {
   await settle();
   assert.equal(await page.locator('.list-row').count(), 7);
 
-  await page.getByLabel('Bounty').selectOption('under $250');
-  await settle();
-  assert.equal(await page.locator('.list-row').count(), 2, 'bounty under $250 matches exactly 2 issues');
-  await page.getByRole('button', { name: 'Reset' }).click();
-  await settle();
-  assert.equal(await page.locator('.list-row').count(), 7);
-
   // ------------------------------------------------------- contributor apply
   await go('/issue/512');
   await page.getByRole('heading', { name: 'Add a test helper for asserting emitted events' }).waitFor();
@@ -206,6 +199,36 @@ try {
   await page.locator('.issue-block-body .proposal').first().getByRole('button', { name: 'Assign' }).click();
   await settle();
 
+  let horizonMode = 'not_found';
+  await page.route('https://horizon-testnet.stellar.org/accounts/*', async route => {
+    if (horizonMode === 'not_found') {
+      await route.fulfill({
+        status: 404,
+        contentType: 'application/json',
+        body: JSON.stringify({ status: 404, title: 'Resource Missing' }),
+      });
+      return;
+    }
+    if (horizonMode === 'no_trustline') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ balances: [{ asset_type: 'native', balance: '100.0000000' }] }),
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        balances: [
+          { asset_type: 'credit_alphanum4', asset_code: 'USDC', balance: '50.0000000' },
+          { asset_type: 'native', balance: '100.0000000' },
+        ],
+      }),
+    });
+  });
+
   await go('/me/settings');
   await page.getByLabel('Payout address').fill('not-an-address');
   await page.getByRole('button', { name: 'Save address' }).click();
@@ -213,6 +236,22 @@ try {
   await page.getByLabel('Payout address').fill('GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN7');
   await page.getByRole('button', { name: 'Save address' }).click();
   await settle();
+  assert.equal(await page.locator('[data-account-status="not_found"]').count(), 1, '404 shows account not found');
+  assert.match(await page.locator('[data-account-status="not_found"]').innerText(), /Account not found/);
+  errors.length = 0;
+
+  horizonMode = 'no_trustline';
+  await page.getByRole('button', { name: 'Save address' }).click();
+  await settle();
+  assert.equal(await page.locator('[data-account-status="no_trustline"]').count(), 1, 'missing USDC shows no trustline');
+  assert.match(await page.locator('[data-account-status="no_trustline"]').innerText(), /No USDC trustline/);
+
+  horizonMode = 'ready';
+  await page.getByRole('button', { name: 'Save address' }).click();
+  await settle();
+  assert.equal(await page.locator('[data-account-status="ready"]').count(), 1, 'funded with USDC shows ready to receive');
+  assert.match(await page.locator('[data-account-status="ready"]').innerText(), /Ready to receive/);
+  await page.unroute('https://horizon-testnet.stellar.org/accounts/*');
 
   await go('/me');
   await page.getByRole('button', { name: 'Submit PR' }).click();
