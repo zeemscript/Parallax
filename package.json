@@ -28,6 +28,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
+    "test": "node --experimental-strip-types --test src/lib/model.test.ts",
     "test:smoke": "node scripts/smoke-test.mjs",
     "visual:check": "node scripts/visual-check.mjs",
     "typecheck": "tsc -b --pretty false"

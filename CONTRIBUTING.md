@@ -105,6 +105,7 @@ CI runs all of these on every pull request. Run them locally first.
 **Web app**
 
 ```bash
+npm test                                      # unit tests for src/lib/model.ts
 npm run build                                 # typecheck + production build
 npm run dev                                   # in another terminal
 npm run test:smoke -- http://localhost:3000   # end-to-end smoke test
