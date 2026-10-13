@@ -265,6 +265,7 @@ export function RepoIssues() {
   const repo = useRepo();
   const [open, setOpen] = useState<string | null>(null);
   const [posting, setPosting] = useState(false);
+  const [unassigning, setUnassigning] = useState<Application | null>(null);
   if (!repo) return <Navigate to="/maintainer" replace />;
 
   const issues = state.issues.filter(i => i.repoId === repo.id);
@@ -275,8 +276,8 @@ export function RepoIssues() {
       ...s,
       applications: s.applications.map(a =>
         a.issueId !== target.issueId ? a
-          : a.applicant === target.applicant ? { ...a, status: 'Assigned' }
-            : a.status === 'Applied' ? { ...a, status: 'Rejected' } : a),
+          : a.applicant === target.applicant ? { ...a, status: 'Assigned', autoDeclined: undefined }
+            : a.status === 'Applied' ? { ...a, status: 'Rejected', autoDeclined: true } : a),
     }));
     notify(`${applicantName(target, state.session.contributor ?? 'You')} assigned.`);
   };
@@ -285,9 +286,24 @@ export function RepoIssues() {
     setState(s => ({
       ...s,
       applications: s.applications.map(a =>
-        a.issueId === target.issueId && a.applicant === target.applicant ? { ...a, status: 'Rejected' } : a),
+        a.issueId === target.issueId && a.applicant === target.applicant
+          ? { ...a, status: 'Rejected', autoDeclined: false }
+          : a),
     }));
     notify('Proposal declined.');
+  };
+
+  const unassign = (target: Application) => {
+    const contributor = applicantName(target, state.session.contributor ?? 'You');
+    setState(s => ({
+      ...s,
+      applications: s.applications.map(a =>
+        a.issueId !== target.issueId ? a
+          : a.applicant === target.applicant ? { ...a, status: 'Rejected', pr: undefined, autoDeclined: false }
+            : a.status === 'Rejected' && a.autoDeclined !== false ? { ...a, status: 'Applied', autoDeclined: undefined } : a),
+    }));
+    setUnassigning(null);
+    notify(`${contributor} unassigned. Issue reopened.`);
   };
 
   // Merging releases the escrowed bounty to the assignee and writes their receipt.
@@ -378,10 +394,17 @@ export function RepoIssues() {
                                 <GitPullRequest size={13} />{p.pr.replace('https://github.com/', '')}
                               </a>
                             )}
-                            {p.status === 'PR submitted' && (
-                              <button className="btn primary xs" onClick={() => release(issue, p)}>
-                                <Check size={12} />Merge &amp; release ${formatMoney(issue.bounty)}
-                              </button>
+                            {(p.status === 'Assigned' || p.status === 'PR submitted') && (
+                              <div className="row" style={{ gap: 6 }}>
+                                {p.status === 'PR submitted' && (
+                                  <button className="btn primary xs" onClick={() => release(issue, p)}>
+                                    <Check size={12} />Merge &amp; release ${formatMoney(issue.bounty)}
+                                  </button>
+                                )}
+                                <button className="btn ghost xs" onClick={() => setUnassigning(p)}>
+                                  Unassign
+                                </button>
+                              </div>
                             )}
                           </div>
                         )) : <p className="hint">No proposals on this issue yet.</p>}
@@ -404,6 +427,23 @@ export function RepoIssues() {
             notify(`Issue posted. $${formatMoney(issue.bounty)} ${PLATFORM.asset} set aside in escrow.`);
           }}
         />
+      </ModalHost>
+
+      <ModalHost
+        open={!!unassigning}
+        title={unassigning ? `Unassign ${applicantName(unassigning, state.session.contributor ?? 'You')}?` : 'Unassign contributor?'}
+        onClose={() => setUnassigning(null)}
+      >
+        {unassigning && (
+          <>
+            <p>
+              <strong>{applicantName(unassigning, state.session.contributor ?? 'You')}</strong> will be marked as rejected, and any proposals that were automatically declined when they were assigned will return to <strong>Applied</strong> so you can pick someone else.
+            </p>
+            <button className="btn danger block" onClick={() => unassign(unassigning)}>
+              Unassign {applicantName(unassigning, state.session.contributor ?? 'You')}
+            </button>
+          </>
+        )}
       </ModalHost>
     </Page>
   );
