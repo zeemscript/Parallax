@@ -6,7 +6,7 @@ import {
 } from '../lib/model';
 import { PLATFORM } from '../lib/platform';
 import { useApp } from '../lib/store';
-import { Chip, Empty, Item, ModalHost, Page, PageHead, Stagger } from '../components/ui';
+import { Avatar, Chip, Empty, Item, ModalHost, Page, PageHead, Stagger } from '../components/ui';
 
 export function ContributorWork() {
   const { state, setState, notify } = useApp();
@@ -224,6 +224,106 @@ export function ContributorSettings() {
           navigate('/');
         }}>Reset preview data</button>
       </ModalHost>
+    </Page>
+  );
+}
+
+export function ContributorLeaderboard() {
+  const { state } = useApp();
+  const [windowMode, setWindowMode] = useState<'all' | '30d'>('all');
+
+  const cutoff = Date.now() - 30 * 86_400_000;
+  const filtered = windowMode === '30d'
+    ? state.receipts.filter(r => {
+      const t = new Date(r.paidAt.includes('T') ? r.paidAt : `${r.paidAt}T12:00:00`).getTime();
+      return !Number.isNaN(t) && t >= cutoff;
+    })
+    : state.receipts;
+
+  const byHandle = new Map<string, { handle: string; receipts: number; total: number; latestPaidAt: string }>();
+  for (const r of filtered) {
+    const cur = byHandle.get(r.contributor);
+    if (!cur) {
+      byHandle.set(r.contributor, { handle: r.contributor, receipts: 1, total: r.amount, latestPaidAt: r.paidAt });
+    } else {
+      cur.receipts += 1;
+      cur.total += r.amount;
+      if (r.paidAt > cur.latestPaidAt) cur.latestPaidAt = r.paidAt;
+    }
+  }
+
+  const rows = [...byHandle.values()].sort((a, b) =>
+    b.total - a.total || b.latestPaidAt.localeCompare(a.latestPaidAt) || a.handle.localeCompare(b.handle),
+  );
+
+  return (
+    <Page className="detail">
+      <div className="detail-inner">
+        <PageHead
+          title="Leaderboard"
+          sub="Top contributors ranked by settled bounties."
+          action={(
+            <div className="row" role="group" aria-label="Time range" style={{ gap: 6 }}>
+              <button
+                type="button"
+                className={windowMode === 'all' ? 'btn sm primary' : 'btn sm ghost'}
+                aria-pressed={windowMode === 'all'}
+                onClick={() => setWindowMode('all')}
+              >
+                All time
+              </button>
+              <button
+                type="button"
+                className={windowMode === '30d' ? 'btn sm primary' : 'btn sm ghost'}
+                aria-pressed={windowMode === '30d'}
+                onClick={() => setWindowMode('30d')}
+              >
+                Last 30 days
+              </button>
+            </div>
+          )}
+        />
+
+        {rows.length > 0 ? (
+          <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--line)', fontSize: 'var(--t2)', color: 'var(--fg-dim)' }}>
+                  <th style={{ padding: '12px 16px' }}>Rank</th>
+                  <th style={{ padding: '12px 16px' }}>Handle</th>
+                  <th style={{ padding: '12px 16px' }}>Receipts</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'right' }}>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, idx) => (
+                  <tr
+                    key={row.handle}
+                    data-leaderboard-row={row.handle}
+                    style={{ borderBottom: idx < rows.length - 1 ? '1px solid var(--line)' : 'none' }}
+                  >
+                    <td className="mono dim" style={{ padding: '12px 16px' }}>#{idx + 1}</td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <span className="row" style={{ gap: 8 }}>
+                        <Avatar name={row.handle} />
+                        <strong className="row-title">{row.handle}</strong>
+                      </span>
+                    </td>
+                    <td className="mono" style={{ padding: '12px 16px' }}>{row.receipts}</td>
+                    <td className="mono num" style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 600 }}>
+                      ${formatMoney(row.total)} {PLATFORM.asset}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <Empty title="No payouts recorded yet">
+            Contributors appear on the leaderboard once their first pull request is merged and its bounty is released.
+          </Empty>
+        )}
+      </div>
     </Page>
   );
 }
