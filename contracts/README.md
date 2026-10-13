@@ -12,6 +12,7 @@ request merges. If the issue is withdrawn, they go back to the maintainer.
 | `fund(maintainer, repo, issue, amount) -> u64` | maintainer | Moves `amount` into escrow for `repo#issue` and returns the bounty id. One open bounty per issue. |
 | `assign(id, assignee?)` | maintainer | Sets or clears the contributor who will be paid. |
 | `release(id, pull_request)` | maintainer | Pays the assignee and emits a `receipt` event. |
+| `release_split(id, pull_request, shares)` | maintainer | Splits the bounty across multiple `(Address, i128)` shares and emits one `receipt` event per recipient. |
 | `refund(id)` | maintainer | Returns an open bounty to the maintainer. |
 | `get(id) -> Bounty` | — | Reads a bounty. |
 | `bounty_for(repo, issue) -> Option<u64>` | — | Id of the open bounty on an issue. |
@@ -41,6 +42,7 @@ portable history of paid work.
 | 3 | `NotOpen` | the bounty is already paid or refunded |
 | 4 | `NotAssigned` | `release` called before `assign` |
 | 5 | `AlreadyFunded` | the issue already has an open bounty |
+| 6 | `InvalidSplit` | `shares` is empty, contains a non-positive amount, or does not sum to `bounty.amount` |
 
 ## Build and test
 
