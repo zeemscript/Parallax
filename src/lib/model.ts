@@ -63,7 +63,7 @@ export interface Session {
 }
 
 export interface State {
-  version: 1;
+  version: number;
   session: Session;
   /** The signed-in contributor's Stellar payout address. */
   payoutAddress: string | null;
@@ -74,6 +74,22 @@ export interface State {
 }
 
 export const storageKey = 'parallax-preview-v1';
+
+export type Migration = (state: Record<string, unknown>) => Record<string, unknown>;
+
+/**
+ * Ordered list of state migrations. `migrations[0]` upgrades v1 -> v2,
+ * `migrations[1]` upgrades v2 -> v3, and so on.
+ */
+export const migrations: Migration[] = [
+  s => ({
+    ...s,
+    version: 2,
+    payoutAddress: typeof s.payoutAddress === 'string' ? s.payoutAddress : null,
+  }),
+];
+
+export const currentVersion = migrations.length + 1;
 
 /** Suggested bounty for a complexity level. Maintainers can set any amount. */
 export const suggestedBounty = (complexity: Complexity) =>
@@ -134,7 +150,7 @@ export const nextIssueId = (issues: Issue[]) =>
 
 export function initialState(): State {
   return {
-    version: 1,
+    version: currentVersion,
     session: { contributor: null, maintainer: null },
     payoutAddress: null,
     receipts: [],
@@ -164,13 +180,36 @@ export function initialState(): State {
   };
 }
 
+/** Applies sequential migrations from `raw.version` up to `steps.length + 1`. */
+export function migrateState(raw: Record<string, unknown>, steps: Migration[] = migrations): State {
+  const target = steps.length + 1;
+  let cur: Record<string, unknown> = { ...raw };
+  let ver = Number(cur.version);
+  if (!Number.isInteger(ver) || ver < 1 || ver > target) {
+    throw new Error(`Unsupported state version: ${String(cur.version)}`);
+  }
+  while (ver < target) {
+    const step = steps[ver - 1];
+    if (!step) throw new Error(`Missing migration for version ${ver}`);
+    cur = step(cur);
+    ver += 1;
+    cur.version = ver;
+  }
+  const shapeOk = cur.version === target
+    && cur.session && typeof cur.session === 'object'
+    && ['repos', 'issues', 'applications', 'receipts'].every(k => Array.isArray(cur[k]));
+  if (!shapeOk) {
+    throw new Error('Migrated state failed shape validation');
+  }
+  return cur as unknown as State;
+}
+
 export function readState(): State {
   try {
     const value = JSON.parse(localStorage.getItem(storageKey) ?? 'null');
-    const shapeOk = value?.version === 1
-      && value.session && typeof value.session === 'object'
-      && ['repos', 'issues', 'applications', 'receipts'].every(k => Array.isArray(value[k]));
-    if (shapeOk) return value;
-  } catch { /* Unreadable storage starts a fresh preview. */ }
+    if (value && typeof value === 'object') {
+      return migrateState(value as Record<string, unknown>);
+    }
+  } catch { /* Unreadable or unmigratable storage starts a fresh preview. */ }
   return initialState();
 }
