@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { ArrowUpRight, GitFork, Search, SlidersHorizontal, Star, X } from 'lucide-react';
-import { formatCount, formatMoney, relativeDate, repoName, type Complexity } from '../lib/model';
+import { escrowedTotal, formatCount, formatMoney, isPaid, relativeDate, repoName, type Complexity } from '../lib/model';
 import { useApp } from '../lib/store';
 import { PLATFORM } from '../lib/platform';
 import { Avatar, Chip, EASE, Empty, Item, LangDot, Page, Segmented, Stagger } from '../components/ui';
@@ -16,9 +16,8 @@ const TABS = [
 ];
 
 const SORTS = ['Newest', 'Bounty', 'Title'] as const;
+const REPO_SORTS = ['Total in escrow', 'Stars', 'Open issues'] as const;
 const LEVELS: (Complexity | 'Any')[] = ['Any', 'Trivial', 'Medium', 'High'];
-const BOUNTY_RANGES = ['Any', 'under $250', '$250–$750', 'over $750'] as const;
-type BountyRange = (typeof BOUNTY_RANGES)[number];
 
 export function Explore({ tab }: { tab: Tab }) {
   const { state } = useApp();
@@ -27,8 +26,8 @@ export function Explore({ tab }: { tab: Tab }) {
   const [q, setQ] = useState(params.get('q') ?? '');
   const [level, setLevel] = useState<Complexity | 'Any'>('Any');
   const [lang, setLang] = useState('Any');
-  const [bountyRange, setBountyRange] = useState<BountyRange>('Any');
   const [sort, setSort] = useState<(typeof SORTS)[number]>('Newest');
+  const [repoSort, setRepoSort] = useState<(typeof REPO_SORTS)[number]>('Total in escrow');
   const [filtersOpen, setFiltersOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -54,26 +53,26 @@ export function Explore({ tab }: { tab: Tab }) {
       if (!repo) return false;
       if (level !== 'Any' && issue.complexity !== level) return false;
       if (lang !== 'Any' && !repo.languages.includes(lang)) return false;
-      if (bountyRange !== 'Any') {
-        const b = issue.bounty ?? 0;
-        if (bountyRange === 'under $250' && !(b < 250)) return false;
-        if ((bountyRange === '$250–$750' || bountyRange === '$250-$750') && !(b >= 250 && b <= 750)) return false;
-        if (bountyRange === 'over $750' && !(b > 750)) return false;
-      }
       return `${issue.title} ${issue.id} ${repoName(repo)}`.toLowerCase().includes(needle);
     });
     return list.sort((a, b) =>
       sort === 'Bounty' ? b.bounty - a.bounty
         : sort === 'Title' ? a.title.localeCompare(b.title)
           : b.created.localeCompare(a.created));
-  }, [state.issues, accepted, level, lang, bountyRange, needle, sort]);
+  }, [state.issues, accepted, level, lang, needle, sort]);
 
-  const repos = useMemo(
-    () => accepted.filter(r =>
+  const repos = useMemo(() => {
+    const list = accepted.filter(r =>
       (lang === 'Any' || r.languages.includes(lang))
-      && `${repoName(r)} ${r.description}`.toLowerCase().includes(needle)),
-    [accepted, lang, needle],
-  );
+      && `${repoName(r)} ${r.description}`.toLowerCase().includes(needle));
+    const repoIssues = (id: string) => state.issues.filter(i => i.repoId === id);
+    const openCount = (id: string) => repoIssues(id).filter(i => !isPaid(i.id, state.applications)).length;
+    const escrow = (id: string) => escrowedTotal(repoIssues(id), state.applications);
+    return list.sort((a, b) =>
+      repoSort === 'Stars' ? b.stars - a.stars
+        : repoSort === 'Open issues' ? openCount(b.id) - openCount(a.id)
+          : escrow(b.id) - escrow(a.id));
+  }, [accepted, lang, needle, repoSort, state.issues, state.applications]);
 
   const orgs = useMemo(() => {
     const names = [...new Set(accepted.map(r => r.org))];
@@ -82,7 +81,7 @@ export function Explore({ tab }: { tab: Tab }) {
       .map(o => ({ org: o, repos: accepted.filter(r => r.org === o) }));
   }, [accepted, needle]);
 
-  const activeFilters = (level !== 'Any' ? 1 : 0) + (lang !== 'Any' ? 1 : 0) + (bountyRange !== 'Any' ? 1 : 0);
+  const activeFilters = (level !== 'Any' ? 1 : 0) + (lang !== 'Any' ? 1 : 0);
   const count = tab === 'issues' ? issues.length : tab === 'repos' ? repos.length : orgs.length;
 
   return (
@@ -149,15 +148,6 @@ export function Explore({ tab }: { tab: Tab }) {
                     </select>
                   </label>
                 )}
-                {tab === 'issues' && (
-                  <label className="field inline">
-                    <span>Bounty</span>
-                    <select className="select" aria-label="Bounty" value={bountyRange}
-                      onChange={e => setBountyRange(e.target.value as BountyRange)}>
-                      {BOUNTY_RANGES.map(b => <option key={b}>{b}</option>)}
-                    </select>
-                  </label>
-                )}
                 <label className="field inline">
                   <span>Language</span>
                   <select className="select" aria-label="Language" value={lang} onChange={e => setLang(e.target.value)}>
@@ -173,7 +163,16 @@ export function Explore({ tab }: { tab: Tab }) {
                     </select>
                   </label>
                 )}
-                <button className="btn sm ghost" onClick={() => { setLevel('Any'); setLang('Any'); setSort('Newest'); setBountyRange('Any'); }}>
+                {tab === 'repos' && (
+                  <label className="field inline">
+                    <span>Sort</span>
+                    <select className="select" aria-label="Sort" value={repoSort}
+                      onChange={e => setRepoSort(e.target.value as (typeof REPO_SORTS)[number])}>
+                      {REPO_SORTS.map(s => <option key={s}>{s}</option>)}
+                    </select>
+                  </label>
+                )}
+                <button className="btn sm ghost" onClick={() => { setLevel('Any'); setLang('Any'); setSort('Newest'); setRepoSort('Total in escrow'); }}>
                   Reset
                 </button>
               </div>
