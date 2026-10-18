@@ -81,8 +81,14 @@ try {
   await page.getByLabel('Complexity').selectOption('High');
   await settle();
   assert.equal(await page.locator('.list-row').count(), 2);
+  await page.getByLabel('Complexity').selectOption('Any');
+  await page.getByLabel('Bounty').selectOption('$250–$750');
+  await settle();
+  assert.equal(await page.locator('.list-row').count(), 3);
+  assert.equal(await page.getByRole('button', { name: /Filters/ }).locator('.pipcount').innerText(), '1');
   await page.getByRole('button', { name: 'Reset' }).click();
   await settle();
+  assert.equal(await page.getByLabel('Bounty').inputValue(), 'Any');
   assert.equal(await page.locator('.list-row').count(), 7);
 
   // ------------------------------------------------------- contributor apply
