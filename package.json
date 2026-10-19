@@ -25,8 +25,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
+    "dev": "node api.js && vite",
+    "build": "node api.js && tsc -b && vite build",
     "preview": "vite preview",
     "test:smoke": "node scripts/smoke-test.mjs",
     "visual:check": "node scripts/visual-check.mjs",
