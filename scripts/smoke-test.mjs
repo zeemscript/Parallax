@@ -88,6 +88,15 @@ try {
   // ------------------------------------------------------- contributor apply
   await go('/issue/512');
   await page.getByRole('heading', { name: 'Add a test helper for asserting emitted events' }).waitFor();
+  await page.evaluate(() => Object.defineProperty(navigator, 'clipboard', {
+    configurable: true,
+    value: undefined,
+  }));
+  await page.getByRole('button', { name: 'Copy link' }).click();
+  const issueLink = page.getByRole('textbox', { name: 'Issue link; select and copy' });
+  assert.equal(await issueLink.inputValue(), `${base}/issue/512`);
+  assert.ok(await issueLink.evaluate(input => input.selectionStart === 0 && input.selectionEnd === input.value.length),
+    'the fallback selects the full issue URL for copying');
   await page.getByRole('button', { name: 'Apply to this issue' }).click();
   await page.waitForURL('**/login?**');
   await page.getByLabel('Display name').fill('Casey Contributor');
