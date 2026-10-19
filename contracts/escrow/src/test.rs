@@ -99,6 +99,28 @@ fn release_requires_an_assignee() {
 }
 
 #[test]
+fn maintainer_cannot_assign_bounty_to_themselves() {
+    let s = setup();
+    let id = s.escrow.fund(&s.maintainer, &s.repo, &842, &900);
+
+    assert_eq!(
+        s.escrow.try_assign(&id, &Some(s.maintainer.clone())),
+        Err(Ok(Error::SelfAssign))
+    );
+    assert_eq!(s.escrow.get(&id).assignee, None);
+}
+
+#[test]
+fn maintainer_can_clear_an_assignee() {
+    let s = setup();
+    let id = s.escrow.fund(&s.maintainer, &s.repo, &842, &900);
+    s.escrow.assign(&id, &Some(s.contributor.clone()));
+    s.escrow.assign(&id, &None);
+
+    assert_eq!(s.escrow.get(&id).assignee, None);
+}
+
+#[test]
 fn closed_bounties_cannot_be_paid_twice() {
     let s = setup();
     let id = s.escrow.fund(&s.maintainer, &s.repo, &842, &900);
