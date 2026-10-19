@@ -15,7 +15,7 @@ import {
 const EASE = [0.2, 0.8, 0.2, 1] as const;
 
 /** True when the OS asks for reduced motion. Reveals then render immediately. */
-function useReducedMotion() {
+export function useReducedMotion() {
   const [reduced, setReduced] = useState(
     () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches,
   );
@@ -184,12 +184,18 @@ export function Magnet({
   children: ReactNode; strength?: number; radius?: number; className?: string;
 }) {
   const ref = useRef<HTMLSpanElement>(null);
+  const prefersReducedMotion = useReducedMotion();
   const x = useSpring(useMotionValue(0), { stiffness: 260, damping: 22 });
   const y = useSpring(useMotionValue(0), { stiffness: 260, damping: 22 });
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    if (prefersReducedMotion) {
+      x.jump(0);
+      y.jump(0);
+      return;
+    }
     const onMove = (e: PointerEvent) => {
       const r = el.getBoundingClientRect();
       const cx = r.left + r.width / 2;
@@ -206,7 +212,7 @@ export function Magnet({
     };
     window.addEventListener('pointermove', onMove, { passive: true });
     return () => window.removeEventListener('pointermove', onMove);
-  }, [x, y, strength, radius]);
+  }, [x, y, strength, radius, prefersReducedMotion]);
 
   return (
     <motion.span ref={ref} className={`bit-magnet ${className}`} style={{ x, y }}>
@@ -218,11 +224,17 @@ export function Magnet({
 /* -------------------------------------------------------------- ClickSpark */
 /** Emits a short burst of rays wherever the user clicks inside. */
 export function ClickSpark({ children }: { children: ReactNode }) {
+  const prefersReducedMotion = useReducedMotion();
   const [sparks, setSparks] = useState<{ id: number; x: number; y: number }[]>([]);
   const ref = useRef<HTMLDivElement>(null);
   const next = useRef(0);
 
+  useEffect(() => {
+    if (prefersReducedMotion) setSparks([]);
+  }, [prefersReducedMotion]);
+
   const onClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (prefersReducedMotion) return;
     const el = ref.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
