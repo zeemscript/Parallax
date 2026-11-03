@@ -5,6 +5,7 @@ import { ArrowRight, ShieldCheck } from 'lucide-react';
 import { useApp } from '../lib/store';
 import { Brand, EASE, Mark } from '../components/ui';
 import { PLATFORM } from '../lib/platform';
+import { safeRedirectTarget } from '../lib/redirect';
 
 function AuthFrame({
   kicker, title, sub, children, foot,
@@ -45,7 +46,7 @@ export function ContributorLogin() {
   const [params] = useSearchParams();
   const [name, setName] = useState(state.session.contributor ?? '');
   const next = params.get('next');
-  const dest = next && next.startsWith('/') && !next.startsWith('/login') ? next : '/explore';
+  const dest = safeRedirectTarget(next);
 
   const submit = (e: FormEvent) => {
     e.preventDefault();

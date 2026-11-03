@@ -29,6 +29,7 @@
     "build": "node api.js && tsc -b && vite build",
     "preview": "vite preview",
     "test:smoke": "node scripts/smoke-test.mjs",
+    "test:unit": "node --test --experimental-strip-types src/lib/*.test.ts",
     "visual:check": "node scripts/visual-check.mjs",
     "typecheck": "tsc -b --pretty false"
   },
