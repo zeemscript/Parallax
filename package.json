@@ -30,6 +30,7 @@
     "preview": "vite preview",
     "test:smoke": "node scripts/smoke-test.mjs",
     "visual:check": "node scripts/visual-check.mjs",
+    "record:demo": "node scripts/record-demo.mjs",
     "typecheck": "tsc -b --pretty false"
   },
   "dependencies": {

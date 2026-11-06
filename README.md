@@ -18,7 +18,7 @@
 
 <br />
 
-<img src="docs/assets/landing.png" alt="Parallax landing page" />
+<img src="docs/assets/bounty-flow-demo.gif" alt="Full Parallax bounty flow demo: post an issue with escrow, apply with proposal, assign contributor, submit pull request, merge and release payout with receipt" />
 
 ## What it is
 
@@ -151,7 +151,8 @@ parallax/
 ├── contracts/
 │   └── escrow/              # Soroban escrow contract and its tests
 ├── scripts/
-│   └── smoke-test.mjs       # end-to-end test of every flow at five viewport widths
+│   ├── smoke-test.mjs       # end-to-end test of every flow at five viewport widths
+│   └── record-demo.mjs      # browser recording script of full bounty flow demo
 └── docs/                    # architecture notes and screenshots
 ```
 
