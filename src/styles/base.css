@@ -12,8 +12,8 @@
   --n3:  #efefef;
   --n4:  #e4e4e4;
   --n5:  #d4d4d4;
-  --n6:  #a3a3a3;
-  --n7:  #737373;
+  --n6:  #666666;
+  --n7:  #595959;
   --n8:  #525252;
   --n9:  #262626;
   --n10: #171717;
@@ -32,19 +32,19 @@
   --solid:     var(--n11);
   --solid-hi:  var(--n9);
 
-  --ok:      #1a7f4b;  --ok-bg:   #eaf6ef;
-  --warn:    #8a6100;  --warn-bg: #fdf4e3;
-  --bad:     #b3261e;  --bad-bg:  #fdeceb;
+  --ok:      #146c3e;  --ok-bg:   #eaf6ef;
+  --warn:    #7a5400;  --warn-bg: #fdf4e3;
+  --bad:     #a11f17;  --bad-bg:  #fdeceb;
 
   --focus: var(--n11);
 
-  /* Accent — React Bits violet. Used for emphasis, never for body text. */
-  --acc:      #a855f7;
-  --acc-2:    #7c3aed;
-  --acc-3:    #c084fc;
-  --acc-soft: rgba(168, 85, 247, .10);
-  --acc-line: rgba(168, 85, 247, .28);
-  --glow:     0 0 0 1px rgba(168,85,247,.30), 0 8px 30px -8px rgba(168,85,247,.45);
+  /* Accent — React Bits violet. Tuned in light mode for >= 4.5:1 AA contrast. */
+  --acc:      #7e22ce;
+  --acc-2:    #6b21a8;
+  --acc-3:    #9333ea;
+  --acc-soft: rgba(126, 34, 206, .10);
+  --acc-line: rgba(126, 34, 206, .28);
+  --glow:     0 0 0 1px rgba(126,34,206,.30), 0 8px 30px -8px rgba(126,34,206,.45);
 
   /* Type — small by default. Eight steps, nothing in between. */
   --t1: 10.5px;
