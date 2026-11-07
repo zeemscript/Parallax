@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 import {
@@ -11,11 +11,24 @@ import { useApp } from '../lib/store';
 import { Avatar, Chip, EASE, Item, Stagger } from '../components/ui';
 import {
   AnimatedContent, Aurora, ClickSpark, CountUp, GlareHover, GradientText,
-  Magnet, RotatingText, ScrollProgress, SplitText, StarBorder,
+  Lanyard, LogoLoop, Magnet, RotatingText, ScrollProgress, SplitText, StarBorder,
 } from '../components/bits';
-import { MoltenMetal } from '../components/bits';
-import { Lanyard, LogoLoop } from '../components/bits';
-import { FanSection, LiveStackSection, SpiralSection, TeamSection } from './sections';
+
+const MoltenMetal = lazy(() =>
+  import('../components/bits/molten-metal').then(m => ({ default: m.MoltenMetal })),
+);
+const LiveStackSection = lazy(() =>
+  import('./sections').then(m => ({ default: m.LiveStackSection })),
+);
+const FanSection = lazy(() =>
+  import('./sections').then(m => ({ default: m.FanSection })),
+);
+const SpiralSection = lazy(() =>
+  import('./sections').then(m => ({ default: m.SpiralSection })),
+);
+const TeamSection = lazy(() =>
+  import('./sections').then(m => ({ default: m.TeamSection })),
+);
 
 const STEPS = [
   { n: '01', t: 'Connect a repo', d: 'A maintainer connects a repository and verifies they have write access to it.', icon: ShieldCheck },
@@ -56,7 +69,9 @@ export function Landing() {
 
       {/* ------------------------------------------------------------- hero */}
       <section className="hero">
-        <MoltenMetal />
+        <Suspense fallback={<span className="bit-metal" aria-hidden="true" />}>
+          <MoltenMetal />
+        </Suspense>
         <span className="metal-veil" aria-hidden="true" />
         <div className="hero-inner">
           <motion.div
@@ -219,7 +234,9 @@ export function Landing() {
         </div>
       </section>
 
-      <LiveStackSection issues={state.issues} repos={state.repos} />
+      <Suspense fallback={null}>
+        <LiveStackSection issues={state.issues} repos={state.repos} />
+      </Suspense>
 
       {/* -------------------------------------------------------- open right now */}
       <section className="band">
@@ -255,7 +272,9 @@ export function Landing() {
         </div>
       </section>
 
-      <FanSection />
+      <Suspense fallback={null}>
+        <FanSection />
+      </Suspense>
 
       {/* ------------------------------------------------------------ four steps */}
       <section className="band alt">
@@ -335,7 +354,9 @@ export function Landing() {
         </div>
       </section>
 
-      <SpiralSection repos={accepted} />
+      <Suspense fallback={null}>
+        <SpiralSection repos={accepted} />
+      </Suspense>
 
       {/* ----------------------------------------------------------- maintainers */}
       <section className="band alt">
@@ -392,7 +413,9 @@ export function Landing() {
         </div>
       </section>
 
-      <TeamSection repos={accepted} />
+      <Suspense fallback={null}>
+        <TeamSection repos={accepted} />
+      </Suspense>
 
       {/* ------------------------------------------------------------------ faq */}
       <section className="band">

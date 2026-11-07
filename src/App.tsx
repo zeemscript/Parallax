@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import {
   Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate, useParams,
 } from 'react-router-dom';
-import { AnimatePresence, motion } from 'motion/react';
 import {
   ArrowRight, Compass, FolderGit2, GitPullRequest, LayoutGrid, ListChecks, Menu, Moon,
   Receipt, Settings, Sun, Wrench, X,
@@ -10,14 +9,90 @@ import {
 import { Provider, useApp } from './lib/store';
 import { canOpenRepoDashboard, escrowedTotal, formatMoney, repoName, reposOwnedBy } from './lib/model';
 import { PLATFORM } from './lib/platform';
-import { Avatar, Brand, EASE } from './components/ui';
-import { GooeyNav } from './components/bits';
-import { Landing } from './pages/landing';
-import { Explore } from './pages/explore';
-import { IssuePage } from './pages/issue';
-import { ContributorLogin, MaintainerLogin } from './pages/auth';
-import { ContributorWork, ContributorReceipts, ContributorSettings } from './pages/contributor';
-import { MaintainerHome, MaintainerSubmit, RepoDashboard, RepoIssues, RepoSettings } from './pages/maintainer';
+import { Avatar, Brand } from './components/ui';
+
+const Landing = lazy(() => import('./pages/landing').then(m => ({ default: m.Landing })));
+const Explore = lazy(() => import('./pages/explore').then(m => ({ default: m.Explore })));
+const IssuePage = lazy(() => import('./pages/issue').then(m => ({ default: m.IssuePage })));
+const ContributorLogin = lazy(() => import('./pages/auth').then(m => ({ default: m.ContributorLogin })));
+const MaintainerLogin = lazy(() => import('./pages/auth').then(m => ({ default: m.MaintainerLogin })));
+const ContributorWork = lazy(() => import('./pages/contributor').then(m => ({ default: m.ContributorWork })));
+const ContributorReceipts = lazy(() => import('./pages/contributor').then(m => ({ default: m.ContributorReceipts })));
+const ContributorSettings = lazy(() => import('./pages/contributor').then(m => ({ default: m.ContributorSettings })));
+const MaintainerHome = lazy(() => import('./pages/maintainer').then(m => ({ default: m.MaintainerHome })));
+const MaintainerSubmit = lazy(() => import('./pages/maintainer').then(m => ({ default: m.MaintainerSubmit })));
+const RepoDashboard = lazy(() => import('./pages/maintainer').then(m => ({ default: m.RepoDashboard })));
+const RepoIssues = lazy(() => import('./pages/maintainer').then(m => ({ default: m.RepoIssues })));
+const RepoSettings = lazy(() => import('./pages/maintainer').then(m => ({ default: m.RepoSettings })));
+
+function TopGooeyNav({ items }: { items: { to: string; label: string; end?: boolean }[] }) {
+  const { pathname } = useLocation();
+  const filterId = useId().replace(/:/g, '');
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [blob, setBlob] = useState<{ x: number; w: number } | null>(null);
+
+  const sync = useCallback(() => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    const active = wrap.querySelector<HTMLElement>('a.on');
+    if (!active) { setBlob(prev => (prev === null ? prev : null)); return; }
+    const wr = wrap.getBoundingClientRect();
+    const ar = active.getBoundingClientRect();
+    const next = { x: Math.round(ar.left - wr.left), w: Math.round(ar.width) };
+    setBlob(prev => (prev && prev.x === next.x && prev.w === next.w ? prev : next));
+  }, []);
+
+  useEffect(() => {
+    sync();
+    const ro = new ResizeObserver(sync);
+    if (wrapRef.current) ro.observe(wrapRef.current);
+    window.addEventListener('resize', sync);
+    return () => { ro.disconnect(); window.removeEventListener('resize', sync); };
+  }, [sync, pathname]);
+
+  return (
+    <div className="goo" ref={wrapRef}>
+      <svg className="goo-defs" aria-hidden="true">
+        <defs>
+          <filter id={`goo-${filterId}`}>
+            <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur" />
+            <feColorMatrix
+              in="blur"
+              mode="matrix"
+              values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 20 -9"
+              result="goo"
+            />
+            <feBlend in="SourceGraphic" in2="goo" />
+          </filter>
+        </defs>
+      </svg>
+      <div className="goo-layer" style={{ filter: `url(#goo-${filterId})` }} aria-hidden="true">
+        {blob && (
+          <span
+            className="goo-blob"
+            style={{
+              transform: `translateX(${blob.x}px)`,
+              width: blob.w,
+              transition: 'transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1), width 0.24s cubic-bezier(0.2, 0.8, 0.2, 1)',
+            }}
+          />
+        )}
+      </div>
+      <nav className="goo-items">
+        {items.map(item => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            end={item.end}
+            className={({ isActive }) => (isActive ? 'on' : '')}
+          >
+            {item.label}
+          </NavLink>
+        ))}
+      </nav>
+    </div>
+  );
+}
 
 /* ------------------------------------------------------------------ theme */
 
@@ -40,15 +115,9 @@ function ThemeToggle() {
       aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
       onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
     >
-      <motion.span
-        key={theme}
-        initial={{ rotate: -50, opacity: 0 }}
-        animate={{ rotate: 0, opacity: 1 }}
-        transition={{ duration: 0.24, ease: EASE }}
-        style={{ display: 'grid', placeItems: 'center' }}
-      >
+      <span style={{ display: 'grid', placeItems: 'center' }}>
         {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
-      </motion.span>
+      </span>
     </button>
   );
 }
@@ -122,7 +191,7 @@ function PublicShell({ children }: { children: ReactNode }) {
       <div className="navpill-wrap">
         <header className={lifted ? 'navpill lifted' : 'navpill'}>
           <Brand />
-          <div className="navpill-nav"><GooeyNav items={nav} /></div>
+          <div className="navpill-nav"><TopGooeyNav items={nav} /></div>
           <div className="navpill-right">
             <ThemeToggle />
             <Link className="btn sm" to="/maintainer/login">List your repo</Link>
@@ -142,27 +211,19 @@ function PublicShell({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <AnimatePresence>
-          {menu && (
-            <motion.nav
-              className="navpill-sheet"
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.22, ease: EASE }}
-            >
-              <div className="navpill-sheet-in">
-                {nav.map(n => (
-                  <NavLink key={n.to} to={n.to} end={n.end}
-                    className={({ isActive }) => (isActive ? 'on' : '')}>
-                    {n.label}
-                  </NavLink>
-                ))}
-                <Link to="/maintainer/login">List your repo</Link>
-              </div>
-            </motion.nav>
-          )}
-        </AnimatePresence>
+        {menu && (
+          <nav className="navpill-sheet">
+            <div className="navpill-sheet-in">
+              {nav.map(n => (
+                <NavLink key={n.to} to={n.to} end={n.end}
+                  className={({ isActive }) => (isActive ? 'on' : '')}>
+                  {n.label}
+                </NavLink>
+              ))}
+              <Link to="/maintainer/login">List your repo</Link>
+            </div>
+          </nav>
+        )}
       </div>
       </div>
       {children}
@@ -204,10 +265,7 @@ function Rail({ title, sub, groups, open, onClose, footer }: {
                 className={({ isActive }) => (isActive ? 'nav-item on' : 'nav-item')}>
                 {({ isActive }) => (
                   <>
-                    {isActive && (
-                      <motion.span layoutId="nav-bg" className="nav-bg"
-                        transition={{ type: 'spring', stiffness: 460, damping: 38 }} />
-                    )}
+                    {isActive && <span className="nav-bg" />}
                     <item.icon />
                     <span>{item.label}</span>
                     {item.count !== undefined && <span className="nav-count">{item.count}</span>}
@@ -237,12 +295,9 @@ function WorkspaceShell({ title, sub, groups, footer, children }: {
   return (
     <div className="shell with-rail">
       <Rail title={title} sub={sub} groups={groups} open={open} onClose={() => setOpen(false)} footer={footer} />
-      <AnimatePresence>
-        {open && (
-          <motion.button className="scrim" aria-label="Close menu" onClick={() => setOpen(false)}
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} />
-        )}
-      </AnimatePresence>
+      {open && (
+        <button className="scrim" aria-label="Close menu" onClick={() => setOpen(false)} />
+      )}
       <header className="topbar">
         <button className="btn ghost icon sm menu-btn" aria-label="Open menu" onClick={() => setOpen(true)}>
           <Menu size={16} />
@@ -361,28 +416,30 @@ function Routed() {
   }, [navigate]);
 
   return (
-    <Routes location={location} key={location.pathname}>
-      <Route path="/" element={<PublicShell><Landing /></PublicShell>} />
-      <Route path="/explore" element={<PublicShell><Explore tab="issues" /></PublicShell>} />
-      <Route path="/explore/repos" element={<PublicShell><Explore tab="repos" /></PublicShell>} />
-      <Route path="/explore/orgs" element={<PublicShell><Explore tab="orgs" /></PublicShell>} />
-      <Route path="/issue/:issueId" element={<PublicShell><IssuePage /></PublicShell>} />
+    <Suspense fallback={null}>
+      <Routes location={location} key={location.pathname}>
+        <Route path="/" element={<PublicShell><Landing /></PublicShell>} />
+        <Route path="/explore" element={<PublicShell><Explore tab="issues" /></PublicShell>} />
+        <Route path="/explore/repos" element={<PublicShell><Explore tab="repos" /></PublicShell>} />
+        <Route path="/explore/orgs" element={<PublicShell><Explore tab="orgs" /></PublicShell>} />
+        <Route path="/issue/:issueId" element={<PublicShell><IssuePage /></PublicShell>} />
 
-      <Route path="/login" element={<ContributorLogin />} />
-      <Route path="/maintainer/login" element={<MaintainerLogin />} />
+        <Route path="/login" element={<ContributorLogin />} />
+        <Route path="/maintainer/login" element={<MaintainerLogin />} />
 
-      <Route path="/me" element={<ContributorShell><ContributorWork /></ContributorShell>} />
-      <Route path="/me/receipts" element={<ContributorShell><ContributorReceipts /></ContributorShell>} />
-      <Route path="/me/settings" element={<ContributorShell><ContributorSettings /></ContributorShell>} />
+        <Route path="/me" element={<ContributorShell><ContributorWork /></ContributorShell>} />
+        <Route path="/me/receipts" element={<ContributorShell><ContributorReceipts /></ContributorShell>} />
+        <Route path="/me/settings" element={<ContributorShell><ContributorSettings /></ContributorShell>} />
 
-      <Route path="/maintainer" element={<MaintainerShell><MaintainerHome /></MaintainerShell>} />
-      <Route path="/maintainer/submit" element={<MaintainerShell><MaintainerSubmit /></MaintainerShell>} />
-      <Route path="/maintainer/repo/:repoId" element={<RepoShell><RepoDashboard /></RepoShell>} />
-      <Route path="/maintainer/repo/:repoId/issues" element={<RepoShell><RepoIssues /></RepoShell>} />
-      <Route path="/maintainer/repo/:repoId/settings" element={<RepoShell><RepoSettings /></RepoShell>} />
+        <Route path="/maintainer" element={<MaintainerShell><MaintainerHome /></MaintainerShell>} />
+        <Route path="/maintainer/submit" element={<MaintainerShell><MaintainerSubmit /></MaintainerShell>} />
+        <Route path="/maintainer/repo/:repoId" element={<RepoShell><RepoDashboard /></RepoShell>} />
+        <Route path="/maintainer/repo/:repoId/issues" element={<RepoShell><RepoIssues /></RepoShell>} />
+        <Route path="/maintainer/repo/:repoId/settings" element={<RepoShell><RepoSettings /></RepoShell>} />
 
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Suspense>
   );
 }
 

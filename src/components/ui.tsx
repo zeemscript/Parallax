@@ -1,7 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
-import { AnimatePresence, motion } from 'motion/react';
 import { X } from 'lucide-react';
 import { LANG_COLOR, orgAvatar } from '../lib/platform';
 
@@ -9,42 +8,16 @@ export const EASE = [0.2, 0.8, 0.2, 1] as const;
 
 /** Page-level entrance. Every route body uses this so navigation feels continuous. */
 export function Page({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return (
-    <motion.div
-      className={className}
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.26, ease: EASE }}
-    >
-      {children}
-    </motion.div>
-  );
+  return <div className={className}>{children}</div>;
 }
 
 /** Staggered list container — children fade up in sequence. */
-export function Stagger({ children, className = '', delay = 0 }: { children: ReactNode; className?: string; delay?: number }) {
-  return (
-    <motion.div
-      className={className}
-      initial="hide"
-      animate="show"
-      variants={{ show: { transition: { staggerChildren: 0.035, delayChildren: delay } } }}
-    >
-      {children}
-    </motion.div>
-  );
+export function Stagger({ children, className = '' }: { children: ReactNode; className?: string; delay?: number }) {
+  return <div className={className}>{children}</div>;
 }
 
 export function Item({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return (
-    <motion.div
-      className={className}
-      variants={{ hide: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}
-      transition={{ duration: 0.3, ease: EASE }}
-    >
-      {children}
-    </motion.div>
-  );
+  return <div className={className}>{children}</div>;
 }
 
 export function Mark({ size = 13 }: { size?: number }) {
@@ -147,7 +120,7 @@ export function Empty({ title, children }: { title: string; children?: ReactNode
 
 /** Sliding segmented control. The pill animates between options via a shared layoutId. */
 export function Segmented<T extends string>({
-  value, options, onChange, idPrefix,
+  value, options, onChange,
 }: {
   value: T;
   options: readonly { value: T; label: string }[];
@@ -164,13 +137,7 @@ export function Segmented<T extends string>({
           data-on={value === opt.value}
           onClick={() => onChange(opt.value)}
         >
-          {value === opt.value && (
-            <motion.span
-              layoutId={`${idPrefix}-pill`}
-              className="seg-pill"
-              transition={{ type: 'spring', stiffness: 420, damping: 34 }}
-            />
-          )}
+          {value === opt.value && <span className="seg-pill" />}
           <span>{opt.label}</span>
         </button>
       ))}
@@ -191,23 +158,15 @@ export function Modal({ title, children, onClose }: { title: string; children: R
   }, [onClose]);
 
   return createPortal(
-    <motion.div
+    <div
       className="modal-scrim"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.16 }}
       onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <motion.div
+      <div
         className="modal"
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        initial={{ opacity: 0, y: 10, scale: 0.98 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 6, scale: 0.99 }}
-        transition={{ duration: 0.22, ease: EASE }}
       >
         <div className="modal-head">
           <h2>{title}</h2>
@@ -216,14 +175,14 @@ export function Modal({ title, children, onClose }: { title: string; children: R
           </button>
         </div>
         <div className="modal-body">{children}</div>
-      </motion.div>
-    </motion.div>,
+      </div>
+    </div>,
     document.body,
   );
 }
 
 export function ModalHost({ open, ...rest }: { open: boolean; title: string; children: ReactNode; onClose: () => void }) {
-  return <AnimatePresence>{open && <Modal {...rest} />}</AnimatePresence>;
+  return open ? <Modal {...rest} /> : null;
 }
 
 /** GitHub glyph for the navbar. */

@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { AnimatePresence, motion } from 'motion/react';
 import { ArrowUpRight, GitFork, Search, SlidersHorizontal, Star, X } from 'lucide-react';
 import { formatCount, formatMoney, relativeDate, repoName, type Complexity } from '../lib/model';
 import { useApp } from '../lib/store';
 import { PLATFORM } from '../lib/platform';
-import { Avatar, Chip, EASE, Empty, Item, LangDot, Page, Segmented, Stagger } from '../components/ui';
+import { Avatar, Chip, Empty, Item, LangDot, Page, Segmented, Stagger } from '../components/ui';
 
 type Tab = 'issues' | 'repos' | 'orgs';
 
@@ -121,47 +120,39 @@ export function Explore({ tab }: { tab: Tab }) {
           )}
         </div>
 
-        <AnimatePresence initial={false}>
-          {filtersOpen && tab !== 'orgs' && (
-            <motion.div
-              className="filters"
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.22, ease: EASE }}
-            >
-              <div className="filters-inner">
-                {tab === 'issues' && (
-                  <label className="field inline">
-                    <span>Complexity</span>
-                    <select className="select" aria-label="Complexity" value={level}
-                      onChange={e => setLevel(e.target.value as Complexity | 'Any')}>
-                      {LEVELS.map(l => <option key={l}>{l}</option>)}
-                    </select>
-                  </label>
-                )}
+        {filtersOpen && tab !== 'orgs' && (
+          <div className="filters">
+            <div className="filters-inner">
+              {tab === 'issues' && (
                 <label className="field inline">
-                  <span>Language</span>
-                  <select className="select" aria-label="Language" value={lang} onChange={e => setLang(e.target.value)}>
-                    {languages.map(l => <option key={l}>{l}</option>)}
+                  <span>Complexity</span>
+                  <select className="select" aria-label="Complexity" value={level}
+                    onChange={e => setLevel(e.target.value as Complexity | 'Any')}>
+                    {LEVELS.map(l => <option key={l}>{l}</option>)}
                   </select>
                 </label>
-                {tab === 'issues' && (
-                  <label className="field inline">
-                    <span>Sort</span>
-                    <select className="select" aria-label="Sort" value={sort}
-                      onChange={e => setSort(e.target.value as (typeof SORTS)[number])}>
-                      {SORTS.map(s => <option key={s}>{s}</option>)}
-                    </select>
-                  </label>
-                )}
-                <button className="btn sm ghost" onClick={() => { setLevel('Any'); setLang('Any'); setSort('Newest'); }}>
-                  Reset
-                </button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+              )}
+              <label className="field inline">
+                <span>Language</span>
+                <select className="select" aria-label="Language" value={lang} onChange={e => setLang(e.target.value)}>
+                  {languages.map(l => <option key={l}>{l}</option>)}
+                </select>
+              </label>
+              {tab === 'issues' && (
+                <label className="field inline">
+                  <span>Sort</span>
+                  <select className="select" aria-label="Sort" value={sort}
+                    onChange={e => setSort(e.target.value as (typeof SORTS)[number])}>
+                    {SORTS.map(s => <option key={s}>{s}</option>)}
+                  </select>
+                </label>
+              )}
+              <button className="btn sm ghost" onClick={() => { setLevel('Any'); setLang('Any'); setSort('Newest'); }}>
+                Reset
+              </button>
+            </div>
+          </div>
+        )}
 
         <p className="result-count num">{count} {tab === 'issues' ? 'issues' : tab === 'repos' ? 'repositories' : 'organizations'}</p>
 
