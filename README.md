@@ -12,7 +12,7 @@
 [![Soroban](https://img.shields.io/badge/contract-Soroban-a855f7.svg)](contracts/)
 [![Good first issues](https://img.shields.io/github/issues/zeemscript/parallax/complexity%3A%20trivial?label=good%20first%20issues&color=22c55e)](https://github.com/zeemscript/parallax/issues?q=is%3Aissue+is%3Aopen+label%3A%22complexity%3A+trivial%22)
 
-[How it works](#how-it-works) · [Quick start](#quick-start) · [Architecture](docs/architecture.md) · [Contract](contracts/README.md) · [Roadmap](#roadmap) · [Contributing](CONTRIBUTING.md)
+[How it works](#how-it-works) · [Quick start](#quick-start) · [Deploying](docs/deploying.md) · [Architecture](docs/architecture.md) · [Contract](contracts/README.md) · [Roadmap](#roadmap) · [Contributing](CONTRIBUTING.md)
 
 </div>
 
@@ -116,6 +116,8 @@ cd parallax
 npm install
 npm run dev            # http://localhost:3000
 ```
+
+See [docs/deploying.md](docs/deploying.md) for production build settings, environment variables, and single-page-app rewrite configuration for Vercel and Netlify.
 
 **Contract** — Rust with the `wasm32v1-none` target, and the
 [Stellar CLI](https://developers.stellar.org/docs/tools/cli) 25.2+ to build the wasm
