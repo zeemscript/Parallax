@@ -10,7 +10,9 @@ import {
 } from '../lib/model';
 import { useApp } from '../lib/store';
 import { PLATFORM } from '../lib/platform';
-import { Avatar, Chip, EASE, Empty, Item, ModalHost, Page, PageHead, Stagger } from '../components/ui';
+import {
+  Avatar, Chip, EASE, Empty, Item, ModalHost, Page, PageHead, Stagger, TransactionToast, useTransaction,
+} from '../components/ui';
 
 const STATUS_TONE: Record<Repo['status'], string> = { Pending: 'warn', Verified: 'ok', Rejected: 'bad' };
 const LEVELS: Complexity[] = ['Trivial', 'Medium', 'High'];
@@ -414,6 +416,13 @@ export function RepoSettings() {
   const navigate = useNavigate();
   const repo = useRepo();
   const [confirm, setConfirm] = useState(false);
+  const SAMPLE_TX_HASH = '8f3c9a21b4e7d06512a98c47e6b3f01928374655a1b2c3d4e5f60718293a4b5c';
+  const tx = useTransaction(async ({ onSigned }) => {
+    await new Promise(r => window.setTimeout(r, 40));
+    onSigned(SAMPLE_TX_HASH);
+    await new Promise(r => window.setTimeout(r, 40));
+    return { hash: SAMPLE_TX_HASH };
+  });
   if (!repo) return <Navigate to="/maintainer" replace />;
 
   return (
@@ -429,6 +438,41 @@ export function RepoSettings() {
           <Chip tone={STATUS_TONE[repo.status]}>{repo.status}</Chip>
         </div>
         <hr className="divider" />
+        <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
+          <span className="col" style={{ gap: 2 }}>
+            <strong className="row-title">Escrow transaction status</strong>
+            <span className="row-sub">Preview how {PLATFORM.chain} {PLATFORM.network} transaction feedback appears.</span>
+          </span>
+          <span className="spacer" />
+          <div className="row" style={{ flexWrap: 'wrap', gap: 6 }}>
+            <button className="btn ghost xs" type="button" onClick={() => void tx.execute()}>
+              Simulate tx
+            </button>
+            <button
+              className="btn ghost xs"
+              type="button"
+              onClick={() =>
+                void tx.execute(async () => {
+                  throw new Error('User rejected the request');
+                })
+              }
+            >
+              Simulate wallet reject
+            </button>
+            <button
+              className="btn ghost xs"
+              type="button"
+              onClick={() =>
+                void tx.execute(async () => {
+                  throw new Error('HostError: Error(Contract, #5)');
+                })
+              }
+            >
+              Simulate contract error
+            </button>
+          </div>
+        </div>
+        <hr className="divider" />
         <div className="row">
           <span className="col" style={{ gap: 2 }}>
             <strong className="row-title">Disconnect repository</strong>
@@ -438,6 +482,8 @@ export function RepoSettings() {
           <button className="btn sm danger" onClick={() => setConfirm(true)}>Disconnect</button>
         </div>
       </div>
+
+      <TransactionToast tx={tx} label="Escrow" />
 
       <ModalHost open={confirm} title="Disconnect this repository?" onClose={() => setConfirm(false)}>
         <p>{repoName(repo)} will be removed, its unpaid bounties returned from escrow, and its dashboard closed.</p>
